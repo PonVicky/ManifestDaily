@@ -80,7 +80,7 @@ export function isRevenueCatConfigured(): boolean {
 export async function getOfferings(): Promise<PurchasesOffering | null> {
   try {
     const offerings = await Purchases.getOfferings();
-    return offerings.current;
+    return offerings.all['default2'];
   } catch (error) {
     if (__DEV__) console.error('[RevenueCat] getOfferings failed:', error);
     return null;
