@@ -15,7 +15,7 @@ module.exports = ({ config }) => ({
       // from the RevenueCat dashboard (Project > API keys):
       //   ios:     'appl_xxxxxxxxxxxxxxxxxxxxxxxxxxxx'
       //   android: 'goog_xxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-      ios: 'test_DFaGPFodDJpugLMFXqZHlrPgudJ',
+      ios: 'appl_PWnvXPUzhlLOeZmmIVqvXLLVNBB',
       android: 'test_DFaGPFodDJpugLMFXqZHlrPgudJ',
     },
   },

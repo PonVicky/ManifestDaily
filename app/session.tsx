@@ -227,43 +227,49 @@ export default function SessionScreen() {
           />
         )}
         <View style={[styles.completionContent, { paddingBottom: insets.bottom + 40 }]}>
-          <Mascot state="celebrate" size={140} float halo />
-
-          <View style={styles.completionText}>
-            <Text
-              style={[
-                styles.completionTitle,
-                { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular_Italic' },
-              ]}
-            >
-              Session complete
-            </Text>
-            <Text
-              style={[
-                styles.completionSub,
-                { color: theme.text2, fontFamily: 'DMSans_400Regular' },
-              ]}
-            >
-              {minutes} focused minutes. Well done.
-            </Text>
+          <View style={styles.completionMascotArea}>
+            <Mascot state="celebrate" size={140} float halo />
           </View>
 
-          <TouchableOpacity
-            style={[
-              styles.doneBtn,
-              { backgroundColor: theme.gold, ...sh },
-            ]}
-            onPress={handleClose}
-          >
-            <Text
+          <View style={styles.completionBottom}>
+            <View style={styles.completionText}>
+              <Text
+                style={[
+                  styles.completionTitle,
+                  { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular_Italic' },
+                ]}
+              >
+                Session complete
+              </Text>
+              <Text
+                style={[
+                  styles.completionSub,
+                  { color: theme.text2, fontFamily: 'DMSans_400Regular' },
+                ]}
+              >
+                {minutes} focused minutes. Well done.
+              </Text>
+            </View>
+
+            <TouchableOpacity
               style={[
-                styles.doneBtnText,
-                { color: theme.onAccent, fontFamily: 'DMSans_500Medium' },
+                styles.doneBtn,
+                { backgroundColor: theme.gold, ...sh },
               ]}
+              onPress={handleClose}
             >
-              Done
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.doneBtnText,
+                  { color: theme.onAccent, fontFamily: 'DMSans_500Medium' },
+                ]}
+              >
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.completionBottomSpacer} />
         </View>
       </ImageBackground>
     );
@@ -385,9 +391,20 @@ const styles = StyleSheet.create({
   completionContent: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing['2xl'],
     paddingHorizontal: spacing.xl,
+  },
+  completionMascotArea: {
+    flex: 0.7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completionBottom: {
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing['2xl'],
+  },
+  completionBottomSpacer: {
+    flex: 0.3,
   },
   completionText: {
     alignItems: 'center',

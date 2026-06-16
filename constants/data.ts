@@ -259,23 +259,30 @@ export type FocusDuration = number;
 
 export const PAYWALL_PLANS = [
   {
+    id: 'weekly',
+    label: 'Weekly',
+    price: '$6.99/week',
+    note: '3-day free trial',
+    badge: null,
+  },
+  {
     id: 'annual',
     label: 'Annual',
-    price: '$39.99/year',
-    note: '7-day free trial · $3.33/mo',
+    price: '$49.99/year',
+    note: '7-day free trial · $4.17/mo',
     badge: 'Most Popular',
   },
   {
     id: 'monthly',
     label: 'Monthly',
-    price: '$6.99/month',
+    price: '$9.99/month',
     note: 'Billed monthly',
     badge: null,
   },
   {
     id: 'lifetime',
     label: 'Lifetime',
-    price: '$99.99 once',
+    price: '$149.99 once',
     note: 'Pay once, yours forever',
     badge: null,
   },

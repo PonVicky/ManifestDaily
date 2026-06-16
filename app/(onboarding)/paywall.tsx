@@ -16,12 +16,12 @@ import ProgressDots from '../../components/ui/ProgressDots';
 
 const TOTAL_STEPS = 13;
 
-// Maps PAYWALL_PLANS ids to RevenueCat's standard package identifiers.
+// Maps PAYWALL_PLANS ids to App Store / Play Store product identifiers.
 const PACKAGE_TYPE_MAP: Record<string, string> = {
-  weekly: '$rc_weekly',
-  monthly: '$rc_monthly',
-  annual: '$rc_annual',
-  lifetime: '$rc_lifetime',
+  weekly: 'com.bepel.manifestdaily.weekly',
+  monthly: 'com.bepel.manifestdaily.monthly',
+  annual: 'com.bepel.manifestdaily.annual',
+  lifetime: 'com.bepel.manifestdaily.lifetime',
 };
 
 export default function PaywallScreen() {
@@ -44,8 +44,12 @@ export default function PaywallScreen() {
 
   const findPackage = (planId: string): PurchasesPackage | null => {
     if (!offerings) return null;
-    const type = PACKAGE_TYPE_MAP[planId];
-    return offerings.availablePackages.find((p) => p.packageType === type || p.identifier === type) ?? null;
+    const productId = PACKAGE_TYPE_MAP[planId];
+    return (
+      offerings.availablePackages.find(
+        (p) => p.product.identifier === productId || p.identifier === productId,
+      ) ?? null
+    );
   };
 
   const showPurchaseError = () =>
@@ -203,7 +207,7 @@ export default function PaywallScreen() {
                     activeOpacity={0.8}
                     disabled={purchasing}
                   >
-                    {plan.badge && (
+                    {plan.badge ? (
                       <View style={[styles.badge, { backgroundColor: theme.orange }]}>
                         <Text
                           style={[
@@ -214,6 +218,8 @@ export default function PaywallScreen() {
                           {plan.badge}
                         </Text>
                       </View>
+                    ) : (
+                      <View style={[styles.badge, { backgroundColor: theme.border, paddingVertical: 2 }]} />
                     )}
                     <Text
                       style={[
@@ -227,6 +233,8 @@ export default function PaywallScreen() {
                       {plan.label}
                     </Text>
                     <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
                       style={[
                         styles.planPrice,
                         {
@@ -264,8 +272,8 @@ export default function PaywallScreen() {
             )}
           </View>
 
-          <Text style={[styles.trialNote, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
-            Free for 3 days, then $39.99/yr · Cancel anytime
+          <Text style={[styles.trialNote, { color: theme.text, fontFamily: 'DMSans_400Regular' }]}>
+            Free for 3 days, then $49.99/yr · Cancel anytime
           </Text>
 
           {/* Footer links */}
@@ -409,7 +417,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badgeText: {
-    fontSize: 9.5,
+    fontSize: 8,
     letterSpacing: 0.5,
   },
   planLabel: {
@@ -417,7 +425,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   planPrice: {
-    fontSize: 18,
+    fontSize: 15,
   },
   planNote: {
     fontSize: 10,
