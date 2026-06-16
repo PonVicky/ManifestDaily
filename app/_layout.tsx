@@ -40,7 +40,7 @@ function useStoreHydrated(): boolean {
 
 // DEV: while working on onboarding, force the flow every launch.
 // Set back to false to restore the normal one-time onboarding behavior.
-const FORCE_ONBOARDING = true;
+const FORCE_ONBOARDING = false;
 
 // Soft paywall: non-premium users get this long after completing onboarding
 // before the tabs are gated behind the paywall screen on every launch.
