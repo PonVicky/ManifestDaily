@@ -16,7 +16,11 @@
       "bundleIdentifier": "com.bepel.manifestdaily",
       "supportsTablet": false,
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification",
+          "processing"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -39,6 +43,7 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-background-task",
       [
         "expo-notifications",
         {
@@ -46,6 +51,16 @@
           "color": "#D6A87A"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "revenueCat": {
+        "ios": "appl_PWnvXPUzhlLOeZmmIVqvXLLVNBB",
+        "android": "test_DFaGPFodDJpugLMFXqZHlrPgudJ"
+      },
+      "router": {},
+      "eas": {
+        "projectId": "1bc86b1f-b3d3-48aa-96ec-28c8245bf165"
+      }
+    }
   }
 }

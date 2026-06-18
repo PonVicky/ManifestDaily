@@ -5,6 +5,7 @@ export type ThemeColors = {
   bg2: string;
   card: string;
   gold: string;
+  goldDark: string;
   goldSoft: string;
   accentTint: string;
   sel: string;
@@ -31,7 +32,7 @@ export type ThemeColors = {
 // `accentTint` is now reserved for decorative glows / halos / shadows only.
 const CREAM_LIGHT: ThemeColors = {
   bg: '#FBF3E7', bg2: '#F4EADB', card: '#FFFDF9',
-  gold: '#D6A87A', goldSoft: '#EAD3B4', accentTint: 'rgba(214,168,122,0.16)',
+  gold: '#D6A87A', goldDark: '#B8783A', goldSoft: '#EAD3B4', accentTint: 'rgba(214,168,122,0.16)',
   sel: '#F5E7D6', cardSolid: '#FFFDF9',
   text: '#3A3028', text2: '#7A6B5D', border: '#ECDFCE', onAccent: '#3A3028',
   tabBg: 'rgba(251,243,231,0.92)',
@@ -40,7 +41,7 @@ const CREAM_LIGHT: ThemeColors = {
 
 const CREAM_DARK: ThemeColors = {
   bg: '#171210', bg2: '#211913', card: '#29201A',
-  gold: '#E0BB8C', goldSoft: '#5A4A36', accentTint: 'rgba(224,187,140,0.16)',
+  gold: '#E0BB8C', goldDark: '#C8924A', goldSoft: '#5A4A36', accentTint: 'rgba(224,187,140,0.16)',
   sel: '#372D24', cardSolid: '#29201A',
   text: '#F5EDE0', text2: '#9A8B7D', border: '#382C22', onAccent: '#3A3028',
   tabBg: 'rgba(23,18,16,0.92)',

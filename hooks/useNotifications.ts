@@ -2,17 +2,9 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useAppStore } from '../store/useAppStore';
+import { ReminderTime } from '../constants/data';
+import { rescheduleViaStore } from '../lib/reminderScheduler';
 
-type ReminderTime = 'morning' | 'afternoon' | 'evening';
-
-// When each reminder fires, as a 24h local time.
-const REMINDER_TIMES: Record<ReminderTime, { hour: number; minute: number }> = {
-  morning: { hour: 8, minute: 0 }, // 8:00 AM
-  afternoon: { hour: 14, minute: 0 }, // 2:00 PM
-  evening: { hour: 20, minute: 0 }, // 8:00 PM
-};
-
-const ANDROID_CHANNEL_ID = 'daily-reminders';
 const SESSION_CHANNEL_ID = 'focus-session';
 const VAULT_CHANNEL_ID = 'vault-unlocks';
 
@@ -25,16 +17,6 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
-
-// Android requires an explicit channel for scheduled notifications to deliver.
-async function ensureAndroidChannel() {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-      name: 'Daily reminders',
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
-}
 
 async function ensureSessionChannel() {
   if (Platform.OS === 'android') {
@@ -58,10 +40,11 @@ async function ensureVaultChannel() {
  * Daily affirmation reminders, backed by expo-notifications.
  *
  * - `requestPermissions` — asks for notification permission (no-op if already granted).
- * - `scheduleDaily` — schedules one repeating daily reminder at the time that
- *   matches the user's chosen `reminderTime`, using today's affirmation as the
- *   body. Replaces any previously scheduled reminder and stores the new id.
- * - `cancelAll` — cancels all scheduled reminders and clears the stored id.
+ * - `scheduleReminders` — schedules one repeating daily reminder per time in
+ *   `times` (morning/afternoon/evening), each with a different random
+ *   affirmation. Replaces any previously scheduled reminders and stores the new
+ *   ids (delegates to the shared scheduler so the background refresh matches).
+ * - `cancelAll` — cancels the scheduled daily reminders and clears the stored ids.
  */
 export function useNotifications() {
   const requestPermissions = useCallback(async () => {
@@ -71,37 +54,25 @@ export function useNotifications() {
     return requested === 'granted';
   }, []);
 
+  // Cancel only our tracked daily reminders (not vault/session notifications).
   const cancelAll = useCallback(async () => {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    useAppStore.getState().setNotificationId(null);
+    const ids = useAppStore.getState().notificationIds;
+    await Promise.all(
+      ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})),
+    );
+    useAppStore.getState().setNotificationIds([]);
+    useAppStore.getState().setLastRescheduledAt(null);
   }, []);
 
-  const scheduleDaily = useCallback(
-    async (reminderTime: ReminderTime) => {
-      // Replace any existing schedule so we never stack duplicate reminders.
-      await cancelAll();
-      await ensureAndroidChannel();
-
-      const { hour, minute } = REMINDER_TIMES[reminderTime];
-      const body = useAppStore.getState().currentAffirmation();
-
-      const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Your daily affirmation ✦',
-          body,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour,
-          minute,
-          channelId: ANDROID_CHANNEL_ID,
-        },
-      });
-
-      useAppStore.getState().setNotificationId(id);
-      return id;
-    },
-    [cancelAll],
+  // Schedule (or re-schedule) the daily reminders. Each time slot gets a
+  // DIFFERENT random affirmation drawn from the user's selected goals, so the
+  // text is fresh from the very first setup — pass explicit `bodies` only when
+  // you need specific text. The actual scheduling, cancellation of the previous
+  // reminders, and store/timestamp bookkeeping live in the shared scheduler
+  // module so the background task can reuse identical logic.
+  const scheduleReminders = useCallback(
+    (times: ReminderTime[], bodies?: string[]) => rescheduleViaStore(times, bodies),
+    [],
   );
 
   // Schedules a one-off notification to fire when a focus session ends, so
@@ -167,7 +138,7 @@ export function useNotifications() {
 
   return {
     requestPermissions,
-    scheduleDaily,
+    scheduleReminders,
     cancelAll,
     scheduleSessionCompletion,
     cancelSessionCompletion,

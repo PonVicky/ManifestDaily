@@ -168,7 +168,7 @@ export default function BeliefScreen() {
           </View>
 
           <Text style={[styles.caption, { color: BELIEF_CAPTION, fontFamily: 'DMSans_400Regular' }]}>
-            ManifestDaily helps you take that walk, one morning at a time.
+            ManifestDaily turns that vision into your daily reality.
           </Text>
         </ScrollView>
 

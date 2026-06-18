@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GoalId, SoundId, FocusDuration, SOUNDS, affirmationPool } from '../constants/data';
+import { GoalId, SoundId, FocusDuration, ReminderTime, SOUNDS, affirmationPool, goalIdForAffirmation, sortReminderTimes } from '../constants/data';
 import { ThemeKey } from '../constants/theme';
 
 export interface Vault {
@@ -13,6 +13,17 @@ export interface Vault {
   opened?: boolean;
   // expo-notifications id for the scheduled "vault is ready" alert (if any).
   notificationId?: string;
+}
+
+// A user-authored affirmation. Stored alongside the built-in pool and shown in
+// the Reflect feed just like a built-in one. `category` is one of the six goals
+// so it can carry the same ✦ category tag; `isCustom` flags it for the
+// "Custom" filter (and any custom-only treatment later).
+export interface CustomAffirmation {
+  id: string;
+  text: string;
+  category: GoalId;
+  isCustom: true;
 }
 
 // A single completed session, recorded from real usage. `type` is omitted
@@ -200,18 +211,30 @@ interface AppState {
   userName: string;
   userDob: Dob | null;
   selectedGoals: GoalId[];
-  reminderTime: 'morning' | 'afternoon' | 'evening' | null;
-  // Identifier of the currently scheduled daily reminder, if any.
-  notificationId: string | null;
+  // One or more times of day the user wants to be reminded, chosen in
+  // onboarding. Empty means none picked yet.
+  reminderTimes: ReminderTime[];
+  // Identifiers of the currently scheduled daily reminders (one per time in
+  // `reminderTimes`). Empty when reminders are off.
+  notificationIds: string[];
+  // Unix ms of the last time the daily reminders were (re)scheduled with fresh
+  // affirmation text. Drives the once-a-day refresh throttle shared by the
+  // background task and the foreground AppState trigger. null = never scheduled.
+  lastRescheduledAt: number | null;
 
   // Entitlements
   // Synced from RevenueCat (checkPremiumStatus) on app launch and after
   // purchase/restore.
   isPremium: boolean;
+  // Session-only: true when the user explicitly closes the paywall without
+  // purchasing. Resets to false on every app restart (not persisted).
+  paywallDismissed: boolean;
 
   // Home
   affirmationIndex: number;
   savedAffirmations: string[];
+  // User-authored affirmations, newest first.
+  customAffirmations: CustomAffirmation[];
   darkMode: boolean;
   themeKey: ThemeKey;
 
@@ -251,13 +274,18 @@ interface AppState {
   setName: (name: string) => void;
   setDob: (dob: Dob) => void;
   setGoals: (goals: GoalId[]) => void;
-  setReminder: (time: 'morning' | 'afternoon' | 'evening') => void;
-  setNotificationId: (id: string | null) => void;
+  setReminders: (times: ReminderTime[]) => void;
+  setNotificationIds: (ids: string[]) => void;
+  setLastRescheduledAt: (ts: number | null) => void;
   completeOnboarding: () => void;
   setPremium: (value: boolean) => void;
+  dismissPaywall: () => void;
   nextAffirmation: () => void;
   prevAffirmation: () => void;
   toggleSaveAffirmation: (text: string) => void;
+  addCustomAffirmation: (text: string, category: GoalId) => void;
+  updateCustomAffirmation: (id: string, text: string, category: GoalId) => void;
+  deleteCustomAffirmation: (id: string) => void;
   setFocusMinutes: (min: FocusDuration) => void;
   setSound: (sound: SoundId | null) => void;
   toggleDarkMode: () => void;
@@ -279,13 +307,16 @@ export const useAppStore = create<AppState>()(
       hasOnboarded: false,
       onboardingCompletedAt: null,
       isPremium: false,
+      paywallDismissed: false,
       userName: '',
       userDob: null,
       selectedGoals: [],
-      reminderTime: null,
-      notificationId: null,
+      reminderTimes: [],
+      notificationIds: [],
+      lastRescheduledAt: null,
       affirmationIndex: 0,
       savedAffirmations: [],
+      customAffirmations: [],
       darkMode: false,
       themeKey: 'cream' as ThemeKey,
       focusMinutes: 25,
@@ -329,13 +360,17 @@ export const useAppStore = create<AppState>()(
 
       setGoals: (goals) => set({ selectedGoals: goals, affirmationIndex: 0 }),
 
-      setReminder: (time) => set({ reminderTime: time }),
+      setReminders: (times) => set({ reminderTimes: sortReminderTimes(times) }),
 
-      setNotificationId: (id) => set({ notificationId: id }),
+      setNotificationIds: (ids) => set({ notificationIds: ids }),
+
+      setLastRescheduledAt: (ts) => set({ lastRescheduledAt: ts }),
 
       completeOnboarding: () => set({ hasOnboarded: true, onboardingCompletedAt: new Date().toISOString() }),
 
       setPremium: (value) => set({ isPremium: value }),
+
+      dismissPaywall: () => set({ paywallDismissed: true }),
 
       nextAffirmation: () =>
         set((state) => {
@@ -356,6 +391,57 @@ export const useAppStore = create<AppState>()(
             ? state.savedAffirmations.filter((a) => a !== text)
             : [...state.savedAffirmations, text];
           return { savedAffirmations: saved };
+        }),
+
+      addCustomAffirmation: (text, category) =>
+        set((state) => ({
+          customAffirmations: [
+            { id: Date.now().toString(), text: text.trim(), category, isCustom: true },
+            ...state.customAffirmations,
+          ],
+        })),
+
+      updateCustomAffirmation: (id, text, category) =>
+        set((state) => {
+          const target = state.customAffirmations.find((c) => c.id === id);
+          const newText = text.trim();
+          const customAffirmations = state.customAffirmations.map((c) =>
+            c.id === id ? { ...c, text: newText, category } : c,
+          );
+          let savedAffirmations = state.savedAffirmations;
+          // Likes are keyed by text. If the text changed and the old one was
+          // liked, carry the like over to the new text (dropping the orphaned
+          // old one unless something else still uses it).
+          if (target && target.text !== newText && savedAffirmations.includes(target.text)) {
+            const oldStillUsed =
+              customAffirmations.some((c) => c.text === target.text) ||
+              goalIdForAffirmation(target.text) !== undefined;
+            if (!oldStillUsed) {
+              savedAffirmations = savedAffirmations.filter((t) => t !== target.text);
+            }
+            if (!savedAffirmations.includes(newText)) {
+              savedAffirmations = [...savedAffirmations, newText];
+            }
+          }
+          return { customAffirmations, savedAffirmations };
+        }),
+
+      deleteCustomAffirmation: (id) =>
+        set((state) => {
+          const target = state.customAffirmations.find((c) => c.id === id);
+          const customAffirmations = state.customAffirmations.filter((c) => c.id !== id);
+          let savedAffirmations = state.savedAffirmations;
+          // Drop the orphaned like, unless a built-in or another custom
+          // affirmation still has the same text.
+          if (target) {
+            const stillUsed =
+              customAffirmations.some((c) => c.text === target.text) ||
+              goalIdForAffirmation(target.text) !== undefined;
+            if (!stillUsed) {
+              savedAffirmations = savedAffirmations.filter((t) => t !== target.text);
+            }
+          }
+          return { customAffirmations, savedAffirmations };
         }),
 
       setFocusMinutes: (min) => set({ focusMinutes: min }),
@@ -426,7 +512,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'manifest-store',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 9,
+      version: 12,
       // Safety net for future store-shape changes. Bump `version` and handle
       // older `persistedState` shapes here so existing users' data survives.
       // v2: no theme-picker UI ships yet, so force the intended default palette
@@ -451,9 +537,28 @@ export const useAppStore = create<AppState>()(
       // `onboardingCompletedAt` (drives the soft paywall grace period).
       // Existing installs start non-premium with no completion timestamp, so
       // the grace-period gate doesn't retroactively apply to them.
+      // v10: adds `customAffirmations` (user-authored affirmations). Existing
+      // installs start with none.
+      // v11: reminders went from a single `reminderTime`/`notificationId` to
+      // arrays (`reminderTimes`/`notificationIds`) so multiple daily times can
+      // be scheduled. Wrap any existing single value into a one-element array.
+      // v12: adds `lastRescheduledAt`, the timestamp driving the once-a-day
+      // affirmation-text refresh. Start null so existing installs refresh on
+      // their next foreground (or background task run), picking fresh random
+      // text in place of whatever was frozen at original schedule time.
       migrate: (persistedState, version) => {
-        const prev = (persistedState ?? {}) as Omit<Partial<AppState>, 'streak'> & { activityData?: unknown; streak?: number };
-        const cleaned: Omit<Partial<AppState>, 'streak'> & { activityData?: unknown; streak?: number } = { ...prev, themeKey: 'cream' as ThemeKey };
+        const prev = (persistedState ?? {}) as Omit<Partial<AppState>, 'streak'> & {
+          activityData?: unknown;
+          streak?: number;
+          reminderTime?: ReminderTime | null;
+          notificationId?: string | null;
+        };
+        const cleaned: Omit<Partial<AppState>, 'streak'> & {
+          activityData?: unknown;
+          streak?: number;
+          reminderTime?: ReminderTime | null;
+          notificationId?: string | null;
+        } = { ...prev, themeKey: 'cream' as ThemeKey };
         if (version < 3) {
           cleaned.streak = 0;
           cleaned.totalSessions = 0;
@@ -480,6 +585,18 @@ export const useAppStore = create<AppState>()(
           cleaned.isPremium = false;
           cleaned.onboardingCompletedAt = null;
         }
+        if (version < 10) {
+          cleaned.customAffirmations = [];
+        }
+        if (version < 11) {
+          cleaned.reminderTimes = cleaned.reminderTime ? [cleaned.reminderTime] : [];
+          cleaned.notificationIds = cleaned.notificationId ? [cleaned.notificationId] : [];
+          delete cleaned.reminderTime;
+          delete cleaned.notificationId;
+        }
+        if (version < 12) {
+          cleaned.lastRescheduledAt = null;
+        }
         return cleaned as unknown as AppState;
       },
       partialize: (state) => ({
@@ -489,9 +606,11 @@ export const useAppStore = create<AppState>()(
         userName: state.userName,
         userDob: state.userDob,
         selectedGoals: state.selectedGoals,
-        reminderTime: state.reminderTime,
-        notificationId: state.notificationId,
+        reminderTimes: state.reminderTimes,
+        notificationIds: state.notificationIds,
+        lastRescheduledAt: state.lastRescheduledAt,
         savedAffirmations: state.savedAffirmations,
+        customAffirmations: state.customAffirmations,
         sessions: state.sessions,
         darkMode: state.darkMode,
         themeKey: state.themeKey,

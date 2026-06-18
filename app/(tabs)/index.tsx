@@ -47,141 +47,136 @@ export default function HomeScreen() {
 
   return (
     <ScreenTransition>
-    <ThemedBackground>
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
-      <Reveal delay={0}>
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text
-              style={[
-                styles.greeting,
-                {
-                  color: darkMode ? theme.text : theme.text2,
-                  fontFamily: 'DMSans_400Regular',
-                  textShadowColor: theme.bg,
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: 4,
-                },
-              ]}
-            >
-              {getGreeting().toUpperCase()}
-            </Text>
-            <Text style={[styles.date, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
-              {getDateString()}
-            </Text>
-          </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              onPress={() => router.push('/settings')}
-              style={[styles.themeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-              activeOpacity={0.8}
-            >
-              <Icon name="settings" size={18} color={theme.gold} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/saved-affirmations')}
-              style={[styles.themeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-              activeOpacity={0.8}
-            >
-              <Icon name="heart" size={18} color={theme.gold} />
-            </TouchableOpacity>
-            <StreakBadge />
-          </View>
-        </View>
-      </Reveal>
-
-      {/* Mascot + today's intention */}
-      <Reveal delay={90}>
-        <View style={styles.mascotArea}>
-          <Mascot state="meditate" size={126} float halo />
-          {goal && (
-            <Text
-              style={[
-                styles.intention,
-                {
-                  color: darkMode ? theme.text : theme.text2,
-                  fontFamily: 'DMSans_400Regular',
-                  textShadowColor: theme.bg,
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: 4,
-                },
-              ]}
-            >
-              Gently focused on{' '}
-              <Text style={{ color: theme.gold, fontFamily: 'DMSans_500Medium' }}>{goal.label}</Text>
-            </Text>
-          )}
-        </View>
-      </Reveal>
-
-      {/* Affirmation card — the centerpiece */}
-      <Reveal delay={170}>
-        <AffirmationCard />
-      </Reveal>
-
-      {/* Begin today ritual */}
-      <Reveal delay={250}>
-        <View style={styles.ritual}>
-          <Text style={[styles.ritualHeading, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
-            Begin today
-          </Text>
-
-          {/* Primary practice */}
-          <TouchableOpacity
-            style={[
-              styles.primaryCard,
-              { backgroundColor: theme.sel, borderColor: theme.goldSoft, ...sh },
-            ]}
-            onPress={() => router.push('/(tabs)/focus')}
-            activeOpacity={0.9}
-          >
-            <View style={[styles.primaryIcon, { backgroundColor: theme.gold }]}>
-              <Icon name="focus" size={24} color={theme.onAccent} />
+      <ThemedBackground>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <Reveal delay={0}>
+            <View style={styles.header}>
+              <View style={styles.headerText}>
+                <Text
+                  style={[
+                    styles.greeting,
+                    {
+                      color: theme.text,
+                      fontFamily: 'DMSans_400Regular',
+                      textShadowColor: theme.bg,
+                      textShadowOffset: { width: 0, height: 0 },
+                      textShadowRadius: 4,
+                    },
+                  ]}
+                >
+                  {getGreeting().toUpperCase()}
+                </Text>
+                <Text style={[styles.date, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
+                  {getDateString()}
+                </Text>
+              </View>
+              <View style={styles.headerRight}>
+                <TouchableOpacity
+                  onPress={() => router.push('/settings')}
+                  style={[styles.themeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="settings" size={18} color={theme.gold} />
+                </TouchableOpacity>
+                <StreakBadge />
+              </View>
             </View>
-            <View style={styles.primaryText}>
-              <Text style={[styles.primaryTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
-                Focus session
+          </Reveal>
+
+          {/* Mascot + today's intention */}
+          <Reveal delay={90}>
+            <View style={styles.mascotArea}>
+              <Mascot state="meditate" size={126} float halo />
+              {goal && (
+                <Text
+                  style={[
+                    styles.intention,
+                    {
+                      color: theme.text,
+                      fontFamily: 'DMSans_400Regular',
+                      textShadowColor: theme.bg,
+                      textShadowOffset: { width: 0, height: 0 },
+                      textShadowRadius: 4,
+                    },
+                  ]}
+                >
+                  Gently focused on{' '}
+                  <Text style={{ color: theme.goldDark, fontFamily: 'DMSans_500Medium' }}>{goal.label}</Text>
+                </Text>
+              )}
+            </View>
+          </Reveal>
+
+          {/* Affirmation card — the centerpiece */}
+          <Reveal delay={170}>
+            <AffirmationCard />
+          </Reveal>
+
+          {/* Begin today ritual */}
+          <Reveal delay={250}>
+            <View style={styles.ritual}>
+              <Text style={[styles.ritualHeading, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
+                Begin today
               </Text>
-              <Text style={[styles.primarySub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
-                Settle in for {focusMinutes} quiet minutes
-              </Text>
-            </View>
-            <View style={[styles.primaryArrow, { backgroundColor: theme.cardSolid, borderColor: theme.goldSoft }]}>
-              <Icon name="arrowR" size={18} color={theme.gold} />
-            </View>
-          </TouchableOpacity>
 
-          {/* Secondary practices */}
-          <View style={styles.secondaryRow}>
-            <SecondaryTile
-              icon="wind"
-              title="Breathing"
-              sub="2 min reset"
-              onPress={() => router.push('/breathing')}
-              theme={theme}
-              shadowStyle={shSm}
-            />
-            <SecondaryTile
-              icon="mail"
-              title="Time capsule"
-              sub="Write forward"
-              onPress={() => router.push('/(tabs)/vault')}
-              theme={theme}
-              shadowStyle={shSm}
-            />
-          </View>
-        </View>
-      </Reveal>
-    </ScrollView>
-    </ThemedBackground>
+              {/* Primary practice */}
+              <TouchableOpacity
+                style={[
+                  styles.primaryCard,
+                  { backgroundColor: theme.sel, borderColor: theme.goldSoft, ...sh },
+                ]}
+                onPress={() => router.push('/(tabs)/focus')}
+                activeOpacity={0.9}
+              >
+                <View style={[styles.primaryIcon, { backgroundColor: theme.gold }]}>
+                  <Icon name="focus" size={24} color={theme.onAccent} />
+                </View>
+                <View style={styles.primaryText}>
+                  <Text style={[styles.primaryTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                    Focus session
+                  </Text>
+                  <Text style={[styles.primarySub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
+                    Settle in for {focusMinutes} quiet minutes
+                  </Text>
+                </View>
+                <View style={[styles.primaryArrow, { backgroundColor: theme.cardSolid, borderColor: theme.goldSoft }]}>
+                  <Icon name="arrowR" size={18} color={theme.gold} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Secondary practices */}
+              <View style={styles.secondaryRow}>
+                <SecondaryTile
+                  icon="wind"
+                  title="Breathing"
+                  sub="2 min reset"
+                  // emoji="🌬️"
+                  onPress={() => router.push('/breathing')}
+                  theme={theme}
+                  shadowStyle={shSm}
+                />
+                <SecondaryTile
+                  icon="mail"
+                  title="Time capsule"
+                  sub="Write forward"
+                  // emoji="💭"
+                  onPress={() => router.push('/(tabs)/vault')}
+                  theme={theme}
+                  shadowStyle={shSm}
+                />
+              </View>
+            </View>
+          </Reveal>
+        </ScrollView>
+      </ThemedBackground>
     </ScreenTransition>
   );
 }
@@ -190,6 +185,7 @@ function SecondaryTile({
   icon,
   title,
   sub,
+  emoji,
   onPress,
   theme,
   shadowStyle,
@@ -197,6 +193,7 @@ function SecondaryTile({
   icon: IconName;
   title: string;
   sub: string;
+  emoji?: string;
   onPress: () => void;
   theme: ReturnType<typeof useTheme>['theme'];
   shadowStyle: object;
@@ -207,6 +204,7 @@ function SecondaryTile({
       onPress={onPress}
       activeOpacity={0.9}
     >
+      {emoji && <Text style={styles.cornerEmoji}>{emoji}</Text>}
       <View style={[styles.secondaryIcon, { backgroundColor: theme.bg2 }]}>
         <Icon name={icon} size={20} color={theme.text2} />
       </View>
@@ -331,5 +329,11 @@ const styles = StyleSheet.create({
   },
   secondarySub: {
     fontSize: 13,
+  },
+  cornerEmoji: {
+    position: 'absolute',
+    top: 10,
+    right: 12,
+    fontSize: 28,
   },
 });

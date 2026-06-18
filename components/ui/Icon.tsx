@@ -8,7 +8,7 @@ export type IconName =
   | 'forest' | 'bell' | 'star' | 'clock' | 'sparkle' | 'arrowR' | 'arrowL'
   | 'settings' | 'target' | 'mute'
   | 'lock' | 'unlock' | 'mail' | 'calendar' | 'feather'
-  | 'download' | 'info';
+  | 'download' | 'info' | 'edit' | 'trash';
 
 interface IconProps {
   name: IconName;
@@ -331,6 +331,22 @@ function Icon({
           <Circle cx="12" cy="12" r="10" {...s} />
           <Line x1="12" y1="16" x2="12" y2="12" {...s} />
           <Circle cx="12" cy="8" r="1" fill={color} stroke="none" />
+        </Svg>
+      );
+    case 'edit':
+      return (
+        <Svg {...props}>
+          <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" {...s} />
+          <Path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" {...s} />
+        </Svg>
+      );
+    case 'trash':
+      return (
+        <Svg {...props}>
+          <Polyline points="3 6 5 6 21 6" {...s} />
+          <Path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" {...s} />
+          <Line x1="10" y1="11" x2="10" y2="17" {...s} />
+          <Line x1="14" y1="11" x2="14" y2="17" {...s} />
         </Svg>
       );
     default:

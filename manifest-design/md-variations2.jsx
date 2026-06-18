@@ -88,7 +88,7 @@ function PaywallB() {
           })}
         </div>
         <div style={{ textAlign:'center', marginBottom:16 }}>
-          <span className="md-serif" style={{ fontSize:30, color:'var(--md-text)' }}>{annual?'$39.99':'$6.99'}</span>
+          <span className="md-serif" style={{ fontSize:30, color:'var(--md-text)' }}>{annual?'$39.99':'$7.99'}</span>
           <span style={{ fontSize:15, color:'var(--md-text2)' }}>{annual?' / year':' / month'}</span>
           <div style={{ fontSize:13, color:'var(--md-text2)', marginTop:4 }}>{annual?'7-day free trial · cancel anytime':'Billed monthly'}</div>
         </div>

@@ -8,7 +8,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAppStore } from '../store/useAppStore';
 import Icon, { IconName } from '../components/ui/Icon';
-import { GOALS, GoalId } from '../constants/data';
+import { GOALS, GoalId, REMINDER_OPTIONS } from '../constants/data';
 import { radius, spacing, fontSize, shadow, shadowDark } from '../constants/tokens';
 
 export default function SettingsScreen() {
@@ -16,8 +16,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { theme, darkMode } = useTheme();
   const toggleDarkMode = useAppStore((s) => s.toggleDarkMode);
-  const reminderTime = useAppStore((s) => s.reminderTime);
-  const notificationsOn = useAppStore((s) => s.notificationId !== null);
+  const reminderTimes = useAppStore((s) => s.reminderTimes);
+  const notificationsOn = useAppStore((s) => s.notificationIds.length > 0);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
   const setGoals = useAppStore((s) => s.setGoals);
   const savedAffirmations = useAppStore((s) => s.savedAffirmations);
@@ -27,7 +27,7 @@ export default function SettingsScreen() {
   const bestStreak = useAppStore((s) => s.bestStreak);
   const vaults = useAppStore((s) => s.vaults);
   const streak = useAppStore((s) => s.streak);
-  const { requestPermissions, scheduleDaily, cancelAll } = useNotifications();
+  const { requestPermissions, scheduleReminders, cancelAll } = useNotifications();
   const sh = darkMode ? shadowDark.sm : shadow.sm;
 
   const [goalPickerOpen, setGoalPickerOpen] = useState(false);
@@ -38,10 +38,13 @@ export default function SettingsScreen() {
     ? selectedGoals.map((id) => GOALS.find((g) => g.id === id)?.label ?? id).join(', ')
     : 'Choose a goal';
 
+  // Fall back to a single morning reminder if none were ever picked.
+  const activeReminderTimes = reminderTimes.length ? reminderTimes : (['morning'] as const);
+
   const handleNotificationsToggle = async (value: boolean) => {
     if (value) {
       const granted = await requestPermissions();
-      if (granted) await scheduleDaily(reminderTime ?? 'morning');
+      if (granted) await scheduleReminders([...activeReminderTimes]);
     } else {
       await cancelAll();
     }
@@ -54,9 +57,9 @@ export default function SettingsScreen() {
       ? selectedGoals.filter((id) => id !== goalId)
       : [...selectedGoals, goalId];
     setGoals(next);
-    // Keep the daily reminder's affirmation in sync with the new goals.
+    // Keep the daily reminders' affirmation in sync with the new goals.
     if (notificationsOn) {
-      await scheduleDaily(reminderTime ?? 'morning');
+      await scheduleReminders([...activeReminderTimes]);
     }
   };
 
@@ -79,7 +82,7 @@ export default function SettingsScreen() {
         appVersion: '1.0.0',
         profile: {
           goals: [...selectedGoals],
-          reminderTime: reminderTime ?? null,
+          reminderTimes: [...reminderTimes],
           streak: streak(),
           bestStreak,
           totalSessions,
@@ -171,7 +174,11 @@ export default function SettingsScreen() {
                 Daily reminders
               </Text>
               <Text style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
-                {notificationsOn ? 'On — gentle daily nudge' : 'Off — no reminders'}
+                {notificationsOn
+                  ? `On — ${activeReminderTimes
+                      .map((id) => REMINDER_OPTIONS.find((r) => r.id === id)?.label ?? id)
+                      .join(', ')}`
+                  : 'Off — no reminders'}
               </Text>
             </View>
           </View>

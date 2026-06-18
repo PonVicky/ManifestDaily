@@ -34,14 +34,18 @@ export default function PlanScreen() {
 
   const name = useAppStore((s) => s.userName);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
-  const reminderTime = useAppStore((s) => s.reminderTime);
+  const reminderTimes = useAppStore((s) => s.reminderTimes);
 
   const topGoal = goalLabel(selectedGoals[0]);
   const focusAreas = selectedGoals.length
     ? selectedGoals.map((id) => goalLabel(id)).join(', ')
     : topGoal;
 
-  const reminder = REMINDER_OPTIONS.find((r) => r.id === reminderTime) ?? REMINDER_OPTIONS[0];
+  // Summarize the chosen reminder times (falling back to morning).
+  const reminders = (reminderTimes.length ? reminderTimes : (['morning'] as const))
+    .map((id) => REMINDER_OPTIONS.find((r) => r.id === id))
+    .filter((r): r is (typeof REMINDER_OPTIONS)[number] => !!r);
+  const reminderValue = reminders.map((r) => r.label).join(', ');
 
   const heading = name
     ? `Your ${topGoal} plan is ready, ${name}.`
@@ -80,7 +84,7 @@ export default function PlanScreen() {
   }));
 
   const rows: { icon: IconName; label: string; value: string }[] = [
-    { icon: 'clock', label: 'Daily affirmation time', value: `${reminder.label} · ${reminder.time}` },
+    { icon: 'clock', label: reminders.length > 1 ? 'Daily affirmation times' : 'Daily affirmation time', value: reminderValue },
     { icon: 'sparkle', label: 'Focus area', value: focusAreas },
     { icon: 'flame', label: 'Streak goal', value: '21 days to feel the shift' },
   ];

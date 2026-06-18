@@ -30,6 +30,7 @@ export default function PaywallScreen() {
   const name = useAppStore((s) => s.userName);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
   const setPremium = useAppStore((s) => s.setPremium);
+  const dismissPaywall = useAppStore((s) => s.dismissPaywall);
   const insets = useSafeAreaInsets();
 
   const [selectedPlan, setSelectedPlan] = useState<string>('annual');
@@ -81,7 +82,20 @@ export default function PaywallScreen() {
   };
 
   const handleClose = () => {
-    router.push('/(onboarding)/allset');
+    dismissPaywall();
+    // During onboarding the paywall is the second-to-last step. Closing it must
+    // still finish onboarding — route to the "All Set" screen, which calls
+    // completeOnboarding(). Otherwise the user lands on the tabs with
+    // hasOnboarded still false and the root guard bounces them back to welcome
+    // (an inescapable loop for anyone who doesn't purchase).
+    //
+    // When this is the post-onboarding *soft* paywall, hasOnboarded is already
+    // true, so just return to the app.
+    if (useAppStore.getState().hasOnboarded) {
+      router.replace('/(tabs)/');
+    } else {
+      router.replace('/(onboarding)/allset');
+    }
   };
 
   const handleRestore = async () => {
@@ -273,7 +287,7 @@ export default function PaywallScreen() {
           </View>
 
           <Text style={[styles.trialNote, { color: theme.text, fontFamily: 'DMSans_400Regular' }]}>
-            Free for 3 days, then $49.99/yr · Cancel anytime
+            Free for 3 days, then $39.99/yr · Cancel anytime
           </Text>
 
           {/* Footer links */}

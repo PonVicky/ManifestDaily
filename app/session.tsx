@@ -391,12 +391,13 @@ const styles = StyleSheet.create({
   completionContent: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.sm,
   },
   completionMascotArea: {
-    flex: 0.7,
+    flex: 2,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: '18%',
   },
   completionBottom: {
     width: '100%',

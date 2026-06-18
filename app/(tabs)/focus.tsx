@@ -316,10 +316,15 @@ export default function FocusScreen() {
               RECENT
             </Text>
             {recent.length === 0 ? (
-              <View style={styles.recentEmptyWrap}>
-                <Icon name="clock" size={28} color={theme.text2} strokeWidth={1.6} />
+              <View
+                style={[
+                  styles.recentEmptyWrap,
+                  { backgroundColor: theme.card, borderColor: theme.border, ...sh },
+                ]}
+              >
+                <Icon name="clock" size={28} color={theme.gold} strokeWidth={1.6} />
                 <Text
-                  style={[styles.recentEmptyTitle, { color: theme.text2, fontFamily: 'DMSans_500Medium' }]}
+                  style={[styles.recentEmptyTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}
                 >
                   No sessions yet
                 </Text>
@@ -496,6 +501,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius['2xl'],
+    borderWidth: 1,
   },
   recentEmptyTitle: {
     fontSize: fontSize.md,

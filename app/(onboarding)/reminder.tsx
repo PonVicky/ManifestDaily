@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { spacing, radius, fontSize } from '../../constants/tokens';
-import { REMINDER_OPTIONS } from '../../constants/data';
+import { REMINDER_OPTIONS, ReminderTime } from '../../constants/data';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import ProgressDots from '../../components/ui/ProgressDots';
@@ -15,13 +15,23 @@ const TOTAL_STEPS = 13;
 export default function ReminderScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const setReminder = useAppStore((s) => s.setReminder);
+  const setReminders = useAppStore((s) => s.setReminders);
+  const storedTimes = useAppStore((s) => s.reminderTimes);
   const insets = useSafeAreaInsets();
 
-  const [selected, setSelected] = useState<string>('morning');
+  // Multi-select: start from any previously chosen times, else default morning.
+  const [selected, setSelected] = useState<ReminderTime[]>(
+    storedTimes.length ? storedTimes : ['morning'],
+  );
+
+  const toggleTime = (id: ReminderTime) => {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+    );
+  };
 
   const handleContinue = () => {
-    setReminder(selected as any);
+    setReminders(selected);
     router.push('/(onboarding)/notification');
   };
 
@@ -38,12 +48,12 @@ export default function ReminderScreen() {
           When should we{'\n'}remind you?
         </Text>
         <Text style={[styles.subtitle, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
-          We'll nudge you gently at your chosen time.
+          Pick one or more times — we'll nudge you gently at each.
         </Text>
 
         <View style={styles.optionList}>
           {REMINDER_OPTIONS.map((opt) => {
-            const isSelected = selected === opt.id;
+            const isSelected = selected.includes(opt.id);
             return (
               <TouchableOpacity
                 key={opt.id}
@@ -54,7 +64,7 @@ export default function ReminderScreen() {
                     borderColor: isSelected ? theme.gold : theme.border,
                   },
                 ]}
-                onPress={() => setSelected(opt.id)}
+                onPress={() => toggleTime(opt.id)}
                 activeOpacity={0.8}
               >
                 <View
@@ -111,7 +121,12 @@ export default function ReminderScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Button label="Continue" onPress={handleContinue} variant="primary" />
+          <Button
+            label="Continue"
+            onPress={handleContinue}
+            variant="primary"
+            disabled={selected.length === 0}
+          />
         </View>
       </View>
     </ImageBackground>
@@ -164,7 +179,7 @@ const styles = StyleSheet.create({
   radio: {
     width: 26,
     height: 26,
-    borderRadius: 13,
+    borderRadius: 8,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',

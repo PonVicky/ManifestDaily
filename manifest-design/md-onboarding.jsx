@@ -160,7 +160,7 @@ function Paywall({ onContinue, onClose, variant='default' }) {
   const [plan,setPlan] = React.useState('annual');
   const plans=[
     { id:'annual', name:'Annual', price:'$39.99', per:'/year', note:'7-day free trial · $3.33/mo', badge:'Most Popular' },
-    { id:'monthly', name:'Monthly', price:'$6.99', per:'/month', note:'Billed monthly' },
+    { id:'monthly', name:'Monthly', price:'$7.99', per:'/month', note:'Billed monthly' },
     { id:'lifetime', name:'Lifetime', price:'$99.99', per:'once', note:'Pay once, yours forever' },
   ];
   const feats=[['sparkle','Unlimited affirmations, personalized to you'],['focus','Every focus length & ambient soundscape'],['progress','Full history, streaks & insights']];

@@ -16,15 +16,15 @@ export default function NotificationScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const reminderTime = useAppStore((s) => s.reminderTime);
-  const { requestPermissions, scheduleDaily } = useNotifications();
+  const reminderTimes = useAppStore((s) => s.reminderTimes);
+  const { requestPermissions, scheduleReminders } = useNotifications();
 
   const handleEnable = async () => {
-    // Request permission, then schedule the daily reminder for the time the
+    // Request permission, then schedule a daily reminder for each time the
     // user already picked on the previous step. Onboarding continues either way.
     const granted = await requestPermissions();
-    if (granted && reminderTime) {
-      await scheduleDaily(reminderTime);
+    if (granted && reminderTimes.length) {
+      await scheduleReminders(reminderTimes);
     }
     router.push('/(onboarding)/social');
   };
@@ -63,7 +63,7 @@ export default function NotificationScreen() {
           <Text
             style={[styles.body, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}
           >
-            We'll remind you once a day — no noise, just a gentle nudge toward your practice.
+            We'll remind you at the times you picked — no noise, just a gentle nudge toward your practice.
           </Text>
         </View>
 

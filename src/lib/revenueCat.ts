@@ -61,8 +61,15 @@ export function initRevenueCat(): boolean {
   // Verbose logs while developing, silent in production builds.
   Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.ERROR);
 
-  Purchases.configure({ apiKey });
-  configured = true;
+  try {
+    Purchases.configure({ apiKey });
+    configured = true;
+  } catch (error) {
+    // Throws in Expo Go because the native store is unavailable there.
+    // Use a RevenueCat Test Store API key for Expo Go testing, or switch to a dev build.
+    if (__DEV__) console.warn('[RevenueCat] configure failed (likely Expo Go):', error);
+    return false;
+  }
 
   if (__DEV__) {
     console.log(`[RevenueCat] Configured for ${Platform.OS}`);

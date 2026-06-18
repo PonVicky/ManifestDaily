@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, AppState, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -19,6 +19,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../hooks/useTheme';
 import { initRevenueCat, checkPremiumStatus } from '../src/lib/revenueCat';
+import { registerDailyReminderTask, maybeRescheduleOnForeground } from '../lib/reminderScheduler';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -49,6 +50,7 @@ const PAYWALL_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
 function NavigationGuard({ hydrated }: { hydrated: boolean }) {
   const hasOnboarded = useAppStore((s) => s.hasOnboarded) && !FORCE_ONBOARDING;
   const isPremium = useAppStore((s) => s.isPremium);
+  const paywallDismissed = useAppStore((s) => s.paywallDismissed);
   const onboardingCompletedAt = useAppStore((s) => s.onboardingCompletedAt);
   const segments = useSegments();
   const router = useRouter();
@@ -56,7 +58,7 @@ function NavigationGuard({ hydrated }: { hydrated: boolean }) {
   const gracePeriodElapsed =
     !!onboardingCompletedAt &&
     Date.now() - new Date(onboardingCompletedAt).getTime() > PAYWALL_GRACE_PERIOD_MS;
-  const needsPaywall = hasOnboarded && !isPremium && gracePeriodElapsed;
+  const needsPaywall = hasOnboarded && !isPremium && gracePeriodElapsed && !paywallDismissed;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -118,6 +120,26 @@ export default function RootLayout() {
     checkPremiumStatus().then((isPremium) => {
       useAppStore.getState().setPremium(isPremium);
     });
+  }, [hydrated]);
+
+  // Register the once-daily background task that refreshes the reminder
+  // affirmation text. Best-effort and independent of hydration; the task itself
+  // reads everything it needs straight from AsyncStorage when it fires.
+  useEffect(() => {
+    registerDailyReminderTask();
+  }, []);
+
+  // Foreground safety net for the daily refresh: iOS rarely runs background
+  // tasks on schedule, so we also refresh the affirmation text whenever the app
+  // becomes active — throttled to once per ~23h inside the scheduler. Needs the
+  // store hydrated since it reconciles ids/timestamp against the live store.
+  useEffect(() => {
+    if (!hydrated) return;
+    maybeRescheduleOnForeground();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') maybeRescheduleOnForeground();
+    });
+    return () => sub.remove();
   }, [hydrated]);
 
   const ready = (fontsLoaded || fontError) && hydrated;
@@ -186,7 +208,7 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
-              name="saved-affirmations"
+              name="new-affirmation"
               options={{
                 headerShown: false,
                 presentation: 'modal',

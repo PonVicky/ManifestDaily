@@ -550,24 +550,40 @@ function EmptyVault({
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 22 }}>
       <LockArt size={168} theme={theme} />
-      <Text style={{ fontFamily: 'DMSerifDisplay_400Regular', fontSize: 25, color: theme.text, textAlign: 'center' }}>
-        Nothing sealed yet
-      </Text>
-      <Text
+      <View
         style={{
-          fontFamily: 'DMSans_400Regular',
-          fontSize: 15,
-          color: theme.text,
-          textAlign: 'center',
-          lineHeight: 23,
-          maxWidth: 280,
-          textShadowColor: theme.bg,
-          textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 4,
+          alignItems: 'center',
+          gap: 10,
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderWidth: 1,
+          borderRadius: 28,
+          paddingVertical: 24,
+          paddingHorizontal: 26,
+          maxWidth: 330,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.06,
+          shadowRadius: 16,
+          elevation: 2,
         }}
       >
-        Write a message, intention, or promise — and lock it away for your future self to find.
-      </Text>
+        <Text style={{ fontFamily: 'DMSerifDisplay_400Regular', fontSize: 25, color: theme.text, textAlign: 'center' }}>
+          Nothing sealed yet
+        </Text>
+        <Text
+          style={{
+            fontFamily: 'DMSans_400Regular',
+            fontSize: 15,
+            color: theme.text2,
+            textAlign: 'center',
+            lineHeight: 23,
+            maxWidth: 280,
+          }}
+        >
+          Write a message, intention, or promise — and lock it away for your future self to find.
+        </Text>
+      </View>
       <Pressable
         onPress={onCreate}
         style={({ pressed }) => ({
@@ -1284,11 +1300,13 @@ function LockedDetailModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: theme.bg }}>
-        {/* Glow */}
+        {/* Glow — centered behind the lock art. The lock's center sits at
+            insets.top + 16 (top pad) + 40 (header) + 26 (gap) + 75 (half of the
+            150-tall LockArt); offset the 280 circle up by half to sit behind it. */}
         <View
           style={{
             position: 'absolute',
-            top: 0,
+            top: insets.top + 17,
             left: '5%',
             width: '90%',
             height: 280,

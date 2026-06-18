@@ -31,8 +31,8 @@ const TESTIMONIALS: Testimonial[] = [
     quote: 'I open it every morning before anything else. It changed how I talk to myself.',
   },
   {
-    initials: 'MK',
-    name: 'Marcus K.',
+    initials: 'MV',
+    name: 'Marcus V.',
     since: '2024',
     quote: "Three weeks in and I finally believe the words I'm reading. Quietly life-changing.",
   },
@@ -116,8 +116,8 @@ export default function SocialScreen() {
             ))}
           </View>
 
-          <Text style={[styles.proof, { color: theme.text2, fontFamily: 'DMSans_500Medium' }]}>
-            50,000+ people affirming daily
+          <Text style={[styles.proof, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+            Join a growing community of manifestors.
           </Text>
         </ScrollView>
 

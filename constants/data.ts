@@ -244,6 +244,16 @@ export const REMINDER_OPTIONS = [
   { id: 'evening', label: 'Evening', time: '7:00 – 9:00 PM', icon: 'moon' },
 ] as const;
 
+export type ReminderTime = (typeof REMINDER_OPTIONS)[number]['id'];
+
+// Canonical chronological order, used to normalize a set of picked times.
+const REMINDER_ORDER = REMINDER_OPTIONS.map((o) => o.id);
+
+// Sort a set of reminder times into morning → afternoon → evening order.
+export function sortReminderTimes(times: ReminderTime[]): ReminderTime[] {
+  return [...times].sort((a, b) => REMINDER_ORDER.indexOf(a) - REMINDER_ORDER.indexOf(b));
+}
+
 export const SOUNDS = [
   { id: 'rain', label: 'Rain', icon: 'rain' },
   { id: 'ocean', label: 'Ocean', icon: 'ocean' },
@@ -261,28 +271,28 @@ export const PAYWALL_PLANS = [
   {
     id: 'weekly',
     label: 'Weekly',
-    price: '$6.99/week',
+    price: '$2.99/week',
     note: '3-day free trial',
     badge: null,
   },
   {
     id: 'annual',
     label: 'Annual',
-    price: '$49.99/year',
-    note: '7-day free trial · $4.17/mo',
+    price: '$39.99/year',
+    note: '7-day free trial · $3.33/mo',
     badge: 'Most Popular',
   },
   {
     id: 'monthly',
     label: 'Monthly',
-    price: '$9.99/month',
+    price: '$7.99/month',
     note: 'Billed monthly',
     badge: null,
   },
   {
     id: 'lifetime',
     label: 'Lifetime',
-    price: '$149.99 once',
+    price: '$99.99 once',
     note: 'Pay once, yours forever',
     badge: null,
   },

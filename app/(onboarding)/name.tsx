@@ -69,7 +69,7 @@ export default function NameScreen() {
             <TextInput
               value={name}
               onChangeText={setLocalName}
-              placeholder="Your first name"
+              placeholder="Your name"
               placeholderTextColor={BACKGROUND_MUTED}
               autoFocus
               autoCapitalize="words"

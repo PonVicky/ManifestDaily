@@ -10,6 +10,7 @@ import Icon, { IconName } from '../ui/Icon';
 
 const TABS: { name: string; icon: IconName; label: string }[] = [
   { name: 'index', icon: 'home', label: 'Home' },
+  { name: 'affirmations', icon: 'sun', label: 'Affirm' },
   { name: 'focus', icon: 'focus', label: 'Focus' },
   { name: 'vault', icon: 'lock', label: 'Vault' },
   { name: 'progress', icon: 'progress', label: 'Progress' },

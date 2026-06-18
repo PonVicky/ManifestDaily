@@ -137,11 +137,22 @@ export default function ProgressScreen() {
         </View>
       </View>
 
-      {/* First-time nudge — only while there's no streak or sessions yet */}
+      {/* First-time nudge — only while there's no streak or sessions yet.
+          Styled like the insight box below (its data-present counterpart) so it
+          reads as a hint on a solid surface instead of muted text floating on
+          the illustrated background. */}
       {streak === 0 && totalSessions === 0 && (
-        <Text style={[styles.zeroNudge, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
-          Complete your first session to start building your streak ✦
-        </Text>
+        <View
+          style={[
+            styles.insightBox,
+            { backgroundColor: theme.sel, borderColor: theme.goldSoft, marginBottom: 14 },
+          ]}
+        >
+          <Icon name="sparkle" size={18} color={theme.gold} fill={theme.gold} />
+          <Text style={[styles.insightText, { color: theme.text, fontFamily: 'DMSans_400Regular' }]}>
+            Complete your first session to start building your streak
+          </Text>
+        </View>
       )}
 
       {/* Activity calendar */}
@@ -228,13 +239,6 @@ const styles = StyleSheet.create({
     fontSize: 34,
     lineHeight: 34,
     letterSpacing: -0.5,
-  },
-  zeroNudge: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginTop: 2,
-    marginBottom: 8,
   },
   calendarHeader: {
     flexDirection: 'row',
