@@ -22,7 +22,7 @@ export default function NotificationScreen() {
   const handleEnable = async () => {
     // Request permission, then schedule a daily reminder for each time the
     // user already picked on the previous step. Onboarding continues either way.
-    const granted = await requestPermissions();
+    const { granted } = await requestPermissions();
     if (granted && reminderTimes.length) {
       await scheduleReminders(reminderTimes);
     }

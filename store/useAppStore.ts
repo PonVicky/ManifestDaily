@@ -230,6 +230,11 @@ interface AppState {
   // purchasing. Resets to false on every app restart (not persisted).
   paywallDismissed: boolean;
 
+  // True once we've asked for the native store review popup. iOS/Android only
+  // surface the prompt a few times a year regardless, so we gate it to a
+  // single lifetime attempt at the 3-day streak milestone.
+  hasRequestedReview: boolean;
+
   // Home
   affirmationIndex: number;
   savedAffirmations: string[];
@@ -280,6 +285,7 @@ interface AppState {
   completeOnboarding: () => void;
   setPremium: (value: boolean) => void;
   dismissPaywall: () => void;
+  setHasRequestedReview: (value: boolean) => void;
   nextAffirmation: () => void;
   prevAffirmation: () => void;
   toggleSaveAffirmation: (text: string) => void;
@@ -308,6 +314,7 @@ export const useAppStore = create<AppState>()(
       onboardingCompletedAt: null,
       isPremium: false,
       paywallDismissed: false,
+      hasRequestedReview: false,
       userName: '',
       userDob: null,
       selectedGoals: [],
@@ -371,6 +378,8 @@ export const useAppStore = create<AppState>()(
       setPremium: (value) => set({ isPremium: value }),
 
       dismissPaywall: () => set({ paywallDismissed: true }),
+
+      setHasRequestedReview: (value) => set({ hasRequestedReview: value }),
 
       nextAffirmation: () =>
         set((state) => {
@@ -512,7 +521,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'manifest-store',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 12,
+      version: 13,
       // Safety net for future store-shape changes. Bump `version` and handle
       // older `persistedState` shapes here so existing users' data survives.
       // v2: no theme-picker UI ships yet, so force the intended default palette
@@ -546,6 +555,9 @@ export const useAppStore = create<AppState>()(
       // affirmation-text refresh. Start null so existing installs refresh on
       // their next foreground (or background task run), picking fresh random
       // text in place of whatever was frozen at original schedule time.
+      // v13: adds `hasRequestedReview`, gating the native store-review prompt
+      // to a single lifetime attempt. Existing installs start false so they're
+      // eligible the next time they hit the 3-day streak milestone.
       migrate: (persistedState, version) => {
         const prev = (persistedState ?? {}) as Omit<Partial<AppState>, 'streak'> & {
           activityData?: unknown;
@@ -597,12 +609,16 @@ export const useAppStore = create<AppState>()(
         if (version < 12) {
           cleaned.lastRescheduledAt = null;
         }
+        if (version < 13) {
+          cleaned.hasRequestedReview = false;
+        }
         return cleaned as unknown as AppState;
       },
       partialize: (state) => ({
         hasOnboarded: state.hasOnboarded,
         onboardingCompletedAt: state.onboardingCompletedAt,
         isPremium: state.isPremium,
+        hasRequestedReview: state.hasRequestedReview,
         userName: state.userName,
         userDob: state.userDob,
         selectedGoals: state.selectedGoals,

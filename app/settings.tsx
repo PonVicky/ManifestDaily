@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, Linking, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,13 @@ import { useAppStore } from '../store/useAppStore';
 import Icon, { IconName } from '../components/ui/Icon';
 import { GOALS, GoalId, REMINDER_OPTIONS } from '../constants/data';
 import { radius, spacing, fontSize, shadow, shadowDark } from '../constants/tokens';
+
+// TODO: replace with the real App Store numeric ID once the app is live
+// (e.g. '1234567890' — the digits after "id" in the App Store URL).
+const APP_STORE_ID = 'APP_STORE_ID';
+
+// TODO: replace with the real Play Store package name (Android applicationId).
+const ANDROID_PACKAGE = 'com.bepel.manifestdaily';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -41,14 +48,54 @@ export default function SettingsScreen() {
   // Fall back to a single morning reminder if none were ever picked.
   const activeReminderTimes = reminderTimes.length ? reminderTimes : (['morning'] as const);
 
+  // True while the user wants reminders on but couldn't be asked (iOS dialog
+  // already denied) and has been sent to system Settings. When the app comes
+  // back to the foreground we re-check permission and, if it's now granted,
+  // schedule the reminders so the toggle catches up to reality.
+  const pendingEnableRef = useRef(false);
+
   const handleNotificationsToggle = async (value: boolean) => {
     if (value) {
-      const granted = await requestPermissions();
-      if (granted) await scheduleReminders([...activeReminderTimes]);
+      const { granted, canAskAgain } = await requestPermissions();
+      if (granted) {
+        pendingEnableRef.current = false;
+        await scheduleReminders([...activeReminderTimes]);
+      } else if (!canAskAgain) {
+        // iOS won't show its dialog again — the only way on is the Settings app.
+        pendingEnableRef.current = true;
+        const settingsName = Platform.OS === 'ios' ? 'iOS Settings' : 'Settings';
+        Alert.alert(
+          'Turn on notifications',
+          `Notifications are turned off in ${settingsName}. Enable them there to get reminders.`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => { pendingEnableRef.current = false; } },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ],
+        );
+      }
+      // granted false but canAskAgain true → user just declined the dialog;
+      // leave the toggle off (it's driven by notificationIds, still empty).
     } else {
+      pendingEnableRef.current = false;
       await cancelAll();
     }
   };
+
+  // When the user returns from the system Settings app after enabling
+  // notifications there, schedule the reminders and let the toggle flip on.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (next) => {
+      if (next !== 'active' || !pendingEnableRef.current) return;
+      // requestPermissions() short-circuits to getPermissionsAsync when already
+      // granted, so this never re-pops a dialog — it just reads current status.
+      const { granted } = await requestPermissions();
+      if (!granted) return;
+      pendingEnableRef.current = false;
+      const times = useAppStore.getState().reminderTimes;
+      await scheduleReminders(times.length ? times : ['morning']);
+    });
+    return () => sub.remove();
+  }, [requestPermissions, scheduleReminders]);
 
   const handleToggleGoal = async (goalId: GoalId) => {
     const isSelected = selectedGoals.includes(goalId);
@@ -117,6 +164,22 @@ export default function SettingsScreen() {
       );
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Open the store's review composer directly. This is intentionally NOT the
+  // native in-app StoreReview popup (that's rate-limited by the OS and gated to
+  // a single lifetime attempt at the 3-day streak) — tapping this row always
+  // takes the user straight to a review form.
+  const rateApp = async () => {
+    const url =
+      Platform.OS === 'ios'
+        ? `https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review`
+        : `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Couldn’t open the store', 'Please try again later.', [{ text: 'OK' }]);
     }
   };
 
@@ -265,6 +328,27 @@ export default function SettingsScreen() {
           ) : (
             <Icon name="arrowR" size={18} color={theme.text2} />
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh }]}
+          onPress={rateApp}
+          activeOpacity={0.8}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: theme.bg2 }]}>
+              <Icon name="star" size={18} color={theme.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                Rate ManifestDaily
+              </Text>
+              <Text style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
+                Leave a review on the {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}
+              </Text>
+            </View>
+          </View>
+          <Icon name="arrowR" size={18} color={theme.text2} />
         </TouchableOpacity>
 
         <View style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh, opacity: 0.7 }]}>

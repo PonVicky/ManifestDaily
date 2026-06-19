@@ -37,9 +37,24 @@ async function ensureVaultChannel() {
 }
 
 /**
+ * The result of asking for notification permission. `granted` is whether we
+ * currently have permission; `canAskAgain` is false once iOS has shown its
+ * one-time system dialog and the user denied it — at that point the only way
+ * back is for the user to flip it on in the system Settings app, so callers
+ * should redirect there rather than silently failing.
+ */
+export interface PermissionResult {
+  granted: boolean;
+  canAskAgain: boolean;
+}
+
+/**
  * Daily affirmation reminders, backed by expo-notifications.
  *
- * - `requestPermissions` — asks for notification permission (no-op if already granted).
+ * - `requestPermissions` — asks for notification permission (no-op if already
+ *   granted). Returns `{ granted, canAskAgain }` so callers can tell the
+ *   "user just denied the dialog" case apart from the "iOS will never ask
+ *   again, send them to Settings" case.
  * - `scheduleReminders` — schedules one repeating daily reminder per time in
  *   `times` (morning/afternoon/evening), each with a different random
  *   affirmation. Replaces any previously scheduled reminders and stores the new
@@ -47,11 +62,22 @@ async function ensureVaultChannel() {
  * - `cancelAll` — cancels the scheduled daily reminders and clears the stored ids.
  */
 export function useNotifications() {
-  const requestPermissions = useCallback(async () => {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status === 'granted') return true;
-    const { status: requested } = await Notifications.requestPermissionsAsync();
-    return requested === 'granted';
+  const requestPermissions = useCallback(async (): Promise<PermissionResult> => {
+    // iOS only ever shows the native permission dialog once. After the user
+    // denies it, requestPermissionsAsync() resolves to "denied" immediately
+    // with canAskAgain === false and no dialog — so we must check first and
+    // signal that case to the caller instead of pretending we asked.
+    const current = await Notifications.getPermissionsAsync();
+    if (current.status === 'granted') {
+      return { granted: true, canAskAgain: current.canAskAgain };
+    }
+    if (current.canAskAgain) {
+      const requested = await Notifications.requestPermissionsAsync();
+      return { granted: requested.status === 'granted', canAskAgain: requested.canAskAgain };
+    }
+    // Previously denied: the dialog won't appear again. Caller should send the
+    // user to system Settings.
+    return { granted: false, canAskAgain: false };
   }, []);
 
   // Cancel only our tracked daily reminders (not vault/session notifications).

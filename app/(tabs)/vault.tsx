@@ -1909,7 +1909,7 @@ export default function VaultScreen() {
       // then store its id on the vault so it can be cancelled when opened.
       let notificationId: string | undefined;
       try {
-        if (await requestPermissions()) {
+        if ((await requestPermissions()).granted) {
           notificationId = await scheduleVaultUnlock(unlockDate);
         }
       } catch { }

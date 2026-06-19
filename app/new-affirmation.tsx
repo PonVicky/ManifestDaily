@@ -104,7 +104,7 @@ export default function NewAffirmationScreen() {
               autoFocus
               style={[
                 styles.input,
-                { color: theme.gold, fontFamily: 'DMSerifDisplay_400Regular_Italic' },
+                { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular_Italic' },
               ]}
             />
           </View>
@@ -158,7 +158,7 @@ export default function NewAffirmationScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-          <Button label={isEditing ? 'Save Changes' : 'Save Affirmation'} onPress={handleSave} variant="primary" disabled={!canSave} />
+          <Button label="Save Affirmation" onPress={handleSave} variant="primary" disabled={!canSave} />
         </View>
       </KeyboardAvoidingView>
     </ImageBackground>
