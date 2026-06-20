@@ -13,7 +13,7 @@ import { radius, spacing, fontSize, shadow, shadowDark } from '../constants/toke
 
 // TODO: replace with the real App Store numeric ID once the app is live
 // (e.g. '1234567890' — the digits after "id" in the App Store URL).
-const APP_STORE_ID = 'APP_STORE_ID';
+const APP_STORE_ID = '6780954528';
 
 // TODO: replace with the real Play Store package name (Android applicationId).
 const ANDROID_PACKAGE = 'com.bepel.manifestdaily';
