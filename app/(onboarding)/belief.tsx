@@ -18,6 +18,7 @@ import { spacing, fontSize } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import Mascot from '../../components/ui/Mascot';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 const BELIEF_BUTTON = '#E0B98F';
@@ -175,7 +176,10 @@ export default function BeliefScreen() {
         <Animated.View style={[styles.footer, buttonStyle]}>
           <Button
             label="I'm ready"
-            onPress={() => router.push('/(onboarding)/reminder')}
+            onPress={() => {
+              trackEvent('onboarding_step_completed', { step: 5 });
+              router.push('/(onboarding)/reminder');
+            }}
             variant="primary"
             disabled={!buttonReady}
             style={{

@@ -10,6 +10,7 @@ import { spacing, radius, shadow, shadowDark } from '../constants/tokens';
 import BreathingAnimation, { BreathingConfig } from '../components/ui/BreathingAnimation';
 import Mascot from '../components/ui/Mascot';
 import Icon from '../components/ui/Icon';
+import { trackEvent } from '../lib/analytics';
 
 function Stepper({
   label,
@@ -118,6 +119,7 @@ export default function BreathingScreen() {
             totalSeconds={totalMins * 60 + totalSecs}
             onComplete={() => {
               logBreathingSession(totalMins * 60 + totalSecs);
+              trackEvent('breathing_exercise_completed');
               router.back();
             }}
           />

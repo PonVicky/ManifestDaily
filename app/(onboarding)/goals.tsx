@@ -9,6 +9,7 @@ import { GOALS, GoalId } from '../../constants/data';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -28,6 +29,7 @@ export default function GoalsScreen() {
 
   const handleContinue = () => {
     setGoals(selected);
+    trackEvent('onboarding_step_completed', { step: 4 });
     router.push('/(onboarding)/belief');
   };
 

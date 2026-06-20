@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ImageBackground, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { radius, shadow, shadowDark, spacing } from '../../constants/tokens';
 import { GOALS, goalIdForAffirmation } from '../../constants/data';
+import { trackEvent } from '../../lib/analytics';
 import Icon from './Icon';
 
 const CARD_BG_LITE = require('../../assets/bg_card_lite.webp');
@@ -32,6 +33,12 @@ export default function AffirmationCard(_props: AffirmationCardProps) {
 
   const text = currentAffirmation();
   const isSaved = savedAffirmations.includes(text);
+
+  // Fire once per distinct affirmation shown on the home card (initial display
+  // and whenever the rotating affirmation changes).
+  useEffect(() => {
+    trackEvent('affirmation_viewed');
+  }, [text]);
 
   const goalId = goalIdForAffirmation(text);
   const goal = goalId ? GOALS.find((g) => g.id === goalId) : undefined;

@@ -20,6 +20,7 @@ import { GOALS, REMINDER_OPTIONS } from '../../constants/data';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -154,7 +155,10 @@ export default function PlanScreen() {
         <View style={styles.footer}>
           <Button
             label="See my full plan"
-            onPress={() => router.push('/(onboarding)/paywall')}
+            onPress={() => {
+              trackEvent('onboarding_step_completed', { step: 11 });
+              router.push('/(onboarding)/paywall');
+            }}
             variant="primary"
             disabled={!isLoaded}
           />

@@ -17,6 +17,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { spacing, fontSize } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 const BACKGROUND_TEXT = '#2D211A';
@@ -35,6 +36,7 @@ export default function NameScreen() {
 
   const handleContinue = () => {
     setName(trimmed);
+    trackEvent('onboarding_step_completed', { step: 2 });
     router.push('/(onboarding)/dob');
   };
 

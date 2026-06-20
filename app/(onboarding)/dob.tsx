@@ -8,6 +8,7 @@ import { spacing, fontSize } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import ProgressDots from '../../components/ui/ProgressDots';
 import DrumRollPicker from '../../components/ui/DrumRollPicker';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 const DEFAULT_DOB: Dob = { day: 1, month: 1, year: 2000 };
@@ -26,6 +27,7 @@ export default function DobScreen() {
 
   const handleContinue = () => {
     setDob(dob);
+    trackEvent('onboarding_step_completed', { step: 3 });
     router.push('/(onboarding)/goals');
   };
 

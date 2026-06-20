@@ -25,6 +25,7 @@ import Svg, { Path } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
 
 import { useAppStore, type Vault, type Dob } from '../../store/useAppStore';
+import { trackEvent } from '../../lib/analytics';
 import { ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -1921,6 +1922,7 @@ export default function VaultScreen() {
         unlock: unlockDate.toISOString(),
         notificationId,
       });
+      trackEvent('vault_entry_created');
     }
     setVaultView(null);
   };

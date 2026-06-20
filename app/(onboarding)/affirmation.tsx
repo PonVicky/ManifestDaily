@@ -16,6 +16,7 @@ import { spacing, fontSize } from '../../constants/tokens';
 import { AFFIRMATIONS } from '../../constants/data';
 import Button from '../../components/shared/Button';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 const WORD_STEP = 220; // ms between each word fading in
@@ -162,7 +163,10 @@ export default function AffirmationScreen() {
         <Animated.View style={buttonStyle}>
           <Button
             label="This feels right"
-            onPress={() => router.push('/(onboarding)/plan')}
+            onPress={() => {
+              trackEvent('onboarding_step_completed', { step: 10 });
+              router.push('/(onboarding)/plan');
+            }}
             variant="primary"
             disabled={!buttonReady}
           />

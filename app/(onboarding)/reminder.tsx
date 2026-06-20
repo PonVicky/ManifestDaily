@@ -9,6 +9,7 @@ import { REMINDER_OPTIONS, ReminderTime } from '../../constants/data';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -32,6 +33,7 @@ export default function ReminderScreen() {
 
   const handleContinue = () => {
     setReminders(selected);
+    trackEvent('onboarding_step_completed', { step: 6 });
     router.push('/(onboarding)/notification');
   };
 

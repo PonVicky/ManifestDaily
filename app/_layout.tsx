@@ -20,6 +20,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../hooks/useTheme';
 import { initRevenueCat, checkPremiumStatus } from '../src/lib/revenueCat';
 import { registerDailyReminderTask, maybeRescheduleOnForeground } from '../lib/reminderScheduler';
+import { AnalyticsProvider } from '../lib/analytics';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -159,67 +160,69 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.bg }}>
-      <SafeAreaProvider>
-        <View style={{ flex: 1, backgroundColor: theme.bg }}>
-          <NavigationGuard hydrated={hydrated} />
-          <Stack screenOptions={{ contentStyle: { backgroundColor: theme.bg } }}>
-            <Stack.Screen
-              name="(onboarding)"
-              options={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: theme.bg } }}
-            />
-            <Stack.Screen
-              name="(tabs)"
-              options={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}
-            />
-            <Stack.Screen
-              name="breathing"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-                contentStyle: { backgroundColor: theme.bg },
-              }}
-            />
-            <Stack.Screen
-              name="session"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-                contentStyle: { backgroundColor: theme.bg },
-              }}
-            />
-            <Stack.Screen
-              name="settings"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-                contentStyle: { backgroundColor: theme.bg },
-              }}
-            />
-            <Stack.Screen
-              name="affirmation-detail"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-                contentStyle: { backgroundColor: theme.bg },
-              }}
-            />
-            <Stack.Screen
-              name="new-affirmation"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-                contentStyle: { backgroundColor: theme.bg },
-              }}
-            />
-          </Stack>
-          <StatusBar style={darkMode ? 'light' : 'dark'} />
-        </View>
-      </SafeAreaProvider>
+      <AnalyticsProvider>
+        <SafeAreaProvider>
+          <View style={{ flex: 1, backgroundColor: theme.bg }}>
+            <NavigationGuard hydrated={hydrated} />
+            <Stack screenOptions={{ contentStyle: { backgroundColor: theme.bg } }}>
+              <Stack.Screen
+                name="(onboarding)"
+                options={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: theme.bg } }}
+              />
+              <Stack.Screen
+                name="(tabs)"
+                options={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}
+              />
+              <Stack.Screen
+                name="breathing"
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                  contentStyle: { backgroundColor: theme.bg },
+                }}
+              />
+              <Stack.Screen
+                name="session"
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                  contentStyle: { backgroundColor: theme.bg },
+                }}
+              />
+              <Stack.Screen
+                name="settings"
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                  contentStyle: { backgroundColor: theme.bg },
+                }}
+              />
+              <Stack.Screen
+                name="affirmation-detail"
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                  contentStyle: { backgroundColor: theme.bg },
+                }}
+              />
+              <Stack.Screen
+                name="new-affirmation"
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                  contentStyle: { backgroundColor: theme.bg },
+                }}
+              />
+            </Stack>
+            <StatusBar style={darkMode ? 'light' : 'dark'} />
+          </View>
+        </SafeAreaProvider>
+      </AnalyticsProvider>
     </GestureHandlerRootView>
   );
 }

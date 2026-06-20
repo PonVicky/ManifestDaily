@@ -14,6 +14,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { spacing, fontSize } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -39,6 +40,7 @@ export default function AllSetScreen() {
 
   const handleEnter = () => {
     completeOnboarding();
+    trackEvent('onboarding_completed');
     router.replace('/(tabs)/');
   };
 

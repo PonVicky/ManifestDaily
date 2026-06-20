@@ -9,6 +9,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAudio } from '../hooks/useAudio';
 import { maybeRequestReview } from '../lib/storeReview';
+import { trackEvent } from '../lib/analytics';
 import { spacing, shadow, shadowDark } from '../constants/tokens';
 import TimerRing from '../components/ui/TimerRing';
 import Mascot from '../components/ui/Mascot';
@@ -151,12 +152,14 @@ export default function SessionScreen() {
       closedRef.current = true;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       logSession(minutes);
+      trackEvent('focus_session_completed');
       // logSession is synchronous, so the streak selector already reflects this
       // session. If it just landed on a milestone, punctuate the moment with a
       // stronger haptic shortly after the completion chime so it reads as its
       // own celebratory beat. The effect runs once, so this fires once.
       const streakNow = useAppStore.getState().streak();
       if (isStreakMilestone(streakNow)) {
+        trackEvent('streak_milestone_hit', { milestone: streakNow });
         setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 450);
         // The 3-day milestone is a genuinely happy moment and well clear of
         // onboarding/paywall — ask for a store review here, once ever.

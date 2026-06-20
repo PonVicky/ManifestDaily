@@ -13,6 +13,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { spacing, radius, fontSize } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -92,7 +93,14 @@ export default function ScienceScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <Button label="Continue" onPress={() => router.push('/(onboarding)/affirmation')} variant="primary" />
+          <Button
+            label="Continue"
+            onPress={() => {
+              trackEvent('onboarding_step_completed', { step: 9 });
+              router.push('/(onboarding)/affirmation');
+            }}
+            variant="primary"
+          />
         </View>
       </View>
     </ImageBackground>

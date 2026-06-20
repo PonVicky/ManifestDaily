@@ -9,6 +9,7 @@ import { spacing, fontSize } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import Icon from '../../components/ui/Icon';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -26,10 +27,12 @@ export default function NotificationScreen() {
     if (granted && reminderTimes.length) {
       await scheduleReminders(reminderTimes);
     }
+    trackEvent('onboarding_step_completed', { step: 7 });
     router.push('/(onboarding)/social');
   };
 
   const handleSkip = () => {
+    trackEvent('onboarding_step_completed', { step: 7 });
     router.push('/(onboarding)/social');
   };
 

@@ -39,6 +39,9 @@ export default function SettingsScreen() {
 
   const [goalPickerOpen, setGoalPickerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Set when the user changes goals in the picker, so we only do the expensive
+  // reminder reschedule once on close instead of on every individual toggle.
+  const goalsChangedRef = useRef(false);
   const currentGoalId = selectedGoals[0] ?? 'confidence';
   const currentGoal = GOALS.find((g) => g.id === currentGoalId);
   const goalsLabel = selectedGoals.length
@@ -97,16 +100,26 @@ export default function SettingsScreen() {
     return () => sub.remove();
   }, [requestPermissions, scheduleReminders]);
 
-  const handleToggleGoal = async (goalId: GoalId) => {
+  const handleToggleGoal = (goalId: GoalId) => {
     const isSelected = selectedGoals.includes(goalId);
     if (isSelected && selectedGoals.length === 1) return;
     const next = isSelected
       ? selectedGoals.filter((id) => id !== goalId)
       : [...selectedGoals, goalId];
     setGoals(next);
-    // Keep the daily reminders' affirmation in sync with the new goals.
-    if (notificationsOn) {
-      await scheduleReminders([...activeReminderTimes]);
+    goalsChangedRef.current = true;
+  };
+
+  // Close the goal picker, rescheduling the daily reminders once (so their
+  // affirmation tracks the new goals) only if the selection actually changed.
+  // Doing this here instead of on every toggle keeps tapping goals instant.
+  const closeGoalPicker = () => {
+    setGoalPickerOpen(false);
+    if (goalsChangedRef.current) {
+      goalsChangedRef.current = false;
+      if (notificationsOn) {
+        scheduleReminders([...activeReminderTimes]);
+      }
     }
   };
 
@@ -383,12 +396,12 @@ export default function SettingsScreen() {
         visible={goalPickerOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setGoalPickerOpen(false)}
+        onRequestClose={closeGoalPicker}
       >
         <TouchableOpacity
           style={styles.sheetOverlay}
           activeOpacity={1}
-          onPress={() => setGoalPickerOpen(false)}
+          onPress={closeGoalPicker}
         >
           <TouchableOpacity
             activeOpacity={1}
@@ -432,7 +445,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={[styles.doneBtn, { backgroundColor: theme.gold }]}
-              onPress={() => setGoalPickerOpen(false)}
+              onPress={closeGoalPicker}
               activeOpacity={0.85}
             >
               <Text style={[styles.doneBtnText, { color: theme.onAccent, fontFamily: 'DMSans_500Medium' }]}>

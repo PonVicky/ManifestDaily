@@ -13,6 +13,7 @@ import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import Mascot from '../../components/ui/Mascot';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 
@@ -39,6 +40,11 @@ export default function PaywallScreen() {
 
   useEffect(() => {
     getOfferings().then(setOfferings);
+    // Trigger inference: if onboarding is already complete this is the post-grace
+    // soft paywall; otherwise it's the paywall step inside the onboarding flow.
+    trackEvent('paywall_viewed', {
+      trigger: useAppStore.getState().hasOnboarded ? 'soft' : 'post_onboarding',
+    });
   }, []);
 
   const goalLabel = GOALS.find((g) => g.id === selectedGoals[0])?.label ?? 'manifestation';
@@ -59,6 +65,8 @@ export default function PaywallScreen() {
   const handleStart = async () => {
     if (purchasing) return;
 
+    trackEvent('purchase_started', { plan: selectedPlan });
+
     const pkg = findPackage(selectedPlan);
     if (!pkg) {
       Alert.alert('Not Available', 'This plan is not available right now.', [{ text: 'OK' }]);
@@ -71,6 +79,12 @@ export default function PaywallScreen() {
 
     if (result.success) {
       if (result.isPremium) {
+        trackEvent('purchase_completed', { plan: selectedPlan });
+        // Weekly (3-day) and annual (7-day) include a free trial; monthly and
+        // lifetime do not. Derive eligibility from the plan's trial note.
+        if (PAYWALL_PLANS.find((p) => p.id === selectedPlan)?.note.includes('trial')) {
+          trackEvent('trial_started', { plan: selectedPlan });
+        }
         setPremium(true);
         router.replace('/(onboarding)/allset');
       } else {
@@ -82,6 +96,7 @@ export default function PaywallScreen() {
   };
 
   const handleClose = () => {
+    trackEvent('paywall_dismissed');
     dismissPaywall();
     // During onboarding the paywall is the second-to-last step. Closing it must
     // still finish onboarding — route to the "All Set" screen, which calls

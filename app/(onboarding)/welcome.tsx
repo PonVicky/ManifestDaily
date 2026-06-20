@@ -15,6 +15,7 @@ import { spacing } from '../../constants/tokens';
 import Button from '../../components/shared/Button';
 import Mascot from '../../components/ui/Mascot';
 import ProgressDots from '../../components/ui/ProgressDots';
+import { trackEvent } from '../../lib/analytics';
 
 const TOTAL_STEPS = 13;
 const BACKGROUND_TEXT = '#2D211A';
@@ -30,6 +31,7 @@ export default function WelcomeScreen() {
   const translateY = useSharedValue(20);
 
   useEffect(() => {
+    trackEvent('onboarding_started');
     opacity.value = withDelay(200, withTiming(1, { duration: 600 }));
     translateY.value = withDelay(200, withTiming(0, { duration: 600 }));
   }, []);
@@ -76,7 +78,10 @@ export default function WelcomeScreen() {
         <Animated.View style={[styles.buttonArea, contentStyle]}>
           <Button
             label="Get started"
-            onPress={() => router.push('/(onboarding)/name')}
+            onPress={() => {
+              trackEvent('onboarding_step_completed', { step: 1 });
+              router.push('/(onboarding)/name');
+            }}
             variant="primary"
           />
         </Animated.View>
