@@ -501,11 +501,21 @@ export function affirmationPool(goals: GoalId[]): string[] {
   return pool;
 }
 
+// Built once at module load: text -> goal id, so goalIdForAffirmation is an
+// O(1) lookup instead of an O(goals * affirmations) scan per call.
+const AFFIRMATION_TO_GOAL: Map<string, GoalId> = (() => {
+  const map = new Map<string, GoalId>();
+  for (const id of Object.keys(AFFIRMATIONS) as GoalId[]) {
+    for (const text of AFFIRMATIONS[id]) {
+      map.set(text, id);
+    }
+  }
+  return map;
+})();
+
 // Reverse-lookup the goal an affirmation belongs to (for the ✦ goal tag).
 export function goalIdForAffirmation(text: string): GoalId | undefined {
-  return (Object.keys(AFFIRMATIONS) as GoalId[]).find((id) =>
-    AFFIRMATIONS[id].includes(text),
-  );
+  return AFFIRMATION_TO_GOAL.get(text);
 }
 
 export const REMINDER_OPTIONS = [

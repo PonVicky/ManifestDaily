@@ -29,14 +29,12 @@ interface AffSlideProps {
 
 const { height: screenHeight } = Dimensions.get('window');
 
-export default function AffSlide({ text, index, isActive, slideHeight, goalId: goalIdProp, isCustom, onSave, onShare, onEdit, onDelete }: AffSlideProps) {
+function AffSlide({ text, index, isActive, slideHeight, goalId: goalIdProp, isCustom, onSave, onShare, onEdit, onDelete }: AffSlideProps) {
   const { theme, darkMode } = useTheme();
-  const savedAffirmations = useAppStore((s) => s.savedAffirmations);
-
-  const isSaved = useMemo(
-    () => savedAffirmations.includes(text),
-    [savedAffirmations, text]
-  );
+  // Select the derived boolean directly (not the whole array) so this slide
+  // only re-renders when ITS OWN saved status flips, instead of on every like
+  // toggle anywhere in the feed.
+  const isSaved = useAppStore((s) => s.savedAffirmations.includes(text));
 
   const goalId = goalIdProp ?? goalIdForAffirmation(text);
   const goal = goalId ? GOALS.find((g) => g.id === goalId) : undefined;
@@ -188,6 +186,10 @@ export default function AffSlide({ text, index, isActive, slideHeight, goalId: g
     </View>
   );
 }
+
+// Guards against re-rendering when an unrelated slide's like status changes
+// or a parent re-renders for an unrelated reason (e.g. theme).
+export default React.memo(AffSlide);
 
 const styles = StyleSheet.create({
   slide: {

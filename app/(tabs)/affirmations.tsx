@@ -11,6 +11,11 @@ import Icon from '../../components/ui/Icon';
 
 const { height: screenHeight } = Dimensions.get('window');
 
+// How many slide positions on either side of the active slide get their full
+// content mounted; everything farther out renders as an empty spacer until
+// the user scrolls near it. Keeps a comfortable buffer ahead of fast swipes.
+const ACTIVE_WINDOW = 2;
+
 type Filter = 'all' | 'liked' | 'custom';
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -351,6 +356,18 @@ export default function AffirmationsScreen() {
         >
           {loopedItems.map((item, i) => {
             const realIndex = toRealIndex(i);
+            // Only mount the heavy slide content (text, icons, action buttons)
+            // for slides near the active one; everything else is a same-height
+            // empty spacer. This keeps the loop/clone array, scroll offsets, and
+            // snap behavior untouched — it only changes what each loopedItems
+            // entry renders, not how many entries there are or where they sit.
+            const activeLoopedIndex = loop ? activeIndex + 1 : activeIndex;
+            const isNear = Math.abs(i - activeLoopedIndex) <= ACTIVE_WINDOW;
+
+            if (!isNear) {
+              return <View key={`${i}-${item.key}`} style={{ height: slideH }} />;
+            }
+
             return (
               <AffSlide
                 key={`${i}-${item.key}`}
