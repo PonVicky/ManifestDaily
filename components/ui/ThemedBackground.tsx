@@ -3,7 +3,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 
 const LIGHT_BG = require('../../assets/manifest-background-lite.webp');
-const DARK_BG = require('../../assets/manifest-background-dark.webp');
+const DARK_BG = require('../../assets/manifest-background-dark.png');
 
 export default function ThemedBackground({
   children,

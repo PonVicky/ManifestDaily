@@ -127,7 +127,7 @@ export default function DurationPicker({ value, onChange }: DurationPickerProps)
           index={value.minutes}
           onIndexChange={(i) => onChange({ ...value, minutes: i })}
           flex={1}
-          align="left"
+          align="right"
         />
         <View style={styles.unitLabel}>
           <Text style={{ color: theme.text2, fontFamily: 'DMSans_400Regular', fontSize: 14 }}>min</Text>
@@ -152,7 +152,6 @@ const styles = StyleSheet.create({
   columns: {
     flexDirection: 'row',
     flex: 1,
-    paddingHorizontal: spacing.xl,
     gap: spacing.sm,
   },
   item: {
@@ -167,8 +166,8 @@ const styles = StyleSheet.create({
   },
   centerBand: {
     position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
+    left: 0,
+    right: 0,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderRadius: 2,

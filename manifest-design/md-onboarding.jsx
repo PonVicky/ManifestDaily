@@ -175,7 +175,7 @@ function Paywall({ onContinue, onClose, variant='default' }) {
 
         {/* ONE emotional promise */}
         <div className="md-serif" style={{ fontSize:30, color:'var(--md-text)', textAlign:'center', marginTop:14, letterSpacing:-.5, lineHeight:1.16 }}>Become who you<br/><span style={{ fontStyle:'italic' }}>keep affirming.</span></div>
-        <div style={{ fontSize:14.5, color:'var(--md-text2)', textAlign:'center', marginTop:11, lineHeight:1.5, maxWidth:300, alignSelf:'center' }}>The calm, certain version of you is built one quiet morning at a time. ManifestDaily keeps you showing up.</div>
+        <div style={{ fontSize:14.5, color:'var(--md-text2)', textAlign:'center', marginTop:11, lineHeight:1.5, maxWidth:300, alignSelf:'center' }}>The calm, certain version of you is crafted one quiet morning at a time. ManifestDaily keeps you showing up.</div>
 
         {/* restrained social proof */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:9, marginTop:16 }}>
