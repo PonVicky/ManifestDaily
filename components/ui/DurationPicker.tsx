@@ -127,7 +127,7 @@ export default function DurationPicker({ value, onChange }: DurationPickerProps)
           index={value.minutes}
           onIndexChange={(i) => onChange({ ...value, minutes: i })}
           flex={1}
-          align="right"
+          align="left"
         />
         <View style={styles.unitLabel}>
           <Text style={{ color: theme.text2, fontFamily: 'DMSans_400Regular', fontSize: 14 }}>min</Text>
