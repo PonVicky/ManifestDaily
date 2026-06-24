@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import Purchases, {
   LOG_LEVEL,
+  PURCHASES_ERROR_CODE,
   CustomerInfo,
   PurchasesOffering,
   PurchasesPackage,
@@ -106,6 +107,15 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<PurchaseRe
   } catch (error: any) {
     if (error?.userCancelled) {
       return { success: false, cancelled: true };
+    }
+    // The product is already owned on this Apple ID (e.g. the user reinstalled,
+    // or is on a different device) but the entitlement hasn't been synced to
+    // this install yet. The App Store won't let them "buy" it again, so fall
+    // back to a restore automatically and unlock from the restored entitlement
+    // instead of surfacing a confusing "Purchase Failed" error.
+    if (error?.code === PURCHASES_ERROR_CODE.PRODUCT_ALREADY_PURCHASED_ERROR) {
+      if (__DEV__) console.log('[RevenueCat] Product already purchased — restoring instead.');
+      return restorePurchases();
     }
     if (__DEV__) console.error('[RevenueCat] purchasePackage failed:', error);
     return { success: false, error };

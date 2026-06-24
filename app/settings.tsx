@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Linking, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAppStore } from '../store/useAppStore';
 import Icon, { IconName } from '../components/ui/Icon';
-import { GOALS, GoalId, REMINDER_OPTIONS } from '../constants/data';
+import { GOALS, GoalId, REMINDER_OPTIONS, ReminderTime } from '../constants/data';
 import { radius, spacing, fontSize, shadow, shadowDark } from '../constants/tokens';
 
 // TODO: replace with the real App Store numeric ID once the app is live
@@ -23,7 +23,10 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { theme, darkMode } = useTheme();
   const toggleDarkMode = useAppStore((s) => s.toggleDarkMode);
+  const userName = useAppStore((s) => s.userName);
+  const setName = useAppStore((s) => s.setName);
   const reminderTimes = useAppStore((s) => s.reminderTimes);
+  const setReminders = useAppStore((s) => s.setReminders);
   const notificationsOn = useAppStore((s) => s.notificationIds.length > 0);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
   const setGoals = useAppStore((s) => s.setGoals);
@@ -38,6 +41,13 @@ export default function SettingsScreen() {
   const sh = darkMode ? shadowDark.sm : shadow.sm;
 
   const [goalPickerOpen, setGoalPickerOpen] = useState(false);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [namePickerOpen, setNamePickerOpen] = useState(false);
+  // Working copy of the name while the edit sheet is open, committed on "Done".
+  const [nameDraft, setNameDraft] = useState('');
+  // Local working copy of the reminder times while the picker sheet is open, so
+  // toggling slots is instant and we only commit/reschedule once on "Done".
+  const [pickerTimes, setPickerTimes] = useState<ReminderTime[]>([]);
   const [exporting, setExporting] = useState(false);
   // Set when the user changes goals in the picker, so we only do the expensive
   // reminder reschedule once on close instead of on every individual toggle.
@@ -121,6 +131,45 @@ export default function SettingsScreen() {
         scheduleReminders([...activeReminderTimes]);
       }
     }
+  };
+
+  // Open the reminder-times sheet seeded with the currently active times.
+  const openTimePicker = () => {
+    setPickerTimes([...activeReminderTimes]);
+    setTimePickerOpen(true);
+  };
+
+  const togglePickerTime = (id: ReminderTime) => {
+    setPickerTimes((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+    );
+  };
+
+  // Commit the picked times. Always persist the preference; only reschedule the
+  // actual notifications when reminders are currently on (otherwise the new
+  // times take effect the next time the user flips the toggle on).
+  const saveTimePicker = () => {
+    if (pickerTimes.length === 0) return; // keep at least one time
+    setTimePickerOpen(false);
+    setReminders(pickerTimes);
+    if (notificationsOn) {
+      scheduleReminders(pickerTimes);
+    }
+  };
+
+  // Open the name sheet seeded with the current name.
+  const openNamePicker = () => {
+    setNameDraft(userName);
+    setNamePickerOpen(true);
+  };
+
+  // Commit the edited name. Trimmed; a blank entry is rejected (Done is disabled
+  // for it) so the personalized greetings always have something to show.
+  const saveName = () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed.length === 0) return;
+    setName(trimmed);
+    setNamePickerOpen(false);
   };
 
   const exportData = async () => {
@@ -218,6 +267,30 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh }]}
+          onPress={openNamePicker}
+          activeOpacity={0.8}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: theme.bg2 }]}>
+              <Icon name="feather" size={18} color={theme.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                Name
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}
+              >
+                {userName ? userName : 'Add your name'}
+              </Text>
+            </View>
+          </View>
+          <Icon name="arrowR" size={18} color={theme.text2} />
+        </TouchableOpacity>
+
         <View style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh }]}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: theme.bg2 }]}>
@@ -265,6 +338,34 @@ export default function SettingsScreen() {
             thumbColor={theme.white}
           />
         </View>
+
+        {notificationsOn && (
+          <TouchableOpacity
+            style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh }]}
+            onPress={openTimePicker}
+            activeOpacity={0.8}
+          >
+            <View style={styles.rowLeft}>
+              <View style={[styles.rowIcon, { backgroundColor: theme.bg2 }]}>
+                <Icon name="clock" size={18} color={theme.gold} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                  Reminder times
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}
+                >
+                  {activeReminderTimes
+                    .map((id) => REMINDER_OPTIONS.find((r) => r.id === id)?.label ?? id)
+                    .join(', ')}
+                </Text>
+              </View>
+            </View>
+            <Icon name="arrowR" size={18} color={theme.text2} />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh }]}
@@ -455,6 +556,136 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Reminder-times action sheet */}
+      <Modal
+        visible={timePickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTimePickerOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={() => setTimePickerOpen(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.sheet,
+              { backgroundColor: theme.bg, paddingBottom: insets.bottom + spacing.lg },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: theme.border }]} />
+            <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
+              When should we remind you?
+            </Text>
+
+            {REMINDER_OPTIONS.map((opt) => {
+              const isSelected = pickerTimes.includes(opt.id);
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  style={[
+                    styles.row,
+                    {
+                      backgroundColor: isSelected ? theme.accentTint : theme.card,
+                      borderColor: isSelected ? theme.gold : theme.border,
+                    },
+                  ]}
+                  onPress={() => togglePickerTime(opt.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.rowLeft}>
+                    <View style={[styles.rowIcon, { backgroundColor: isSelected ? theme.goldSoft : theme.bg2 }]}>
+                      <Icon name={opt.icon as IconName} size={18} color={isSelected ? theme.gold : theme.text2} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.rowTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                        {opt.label}
+                      </Text>
+                      <Text style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
+                        {opt.time}
+                      </Text>
+                    </View>
+                  </View>
+                  {isSelected && <Icon name="check" size={18} color={theme.gold} strokeWidth={2.5} />}
+                </TouchableOpacity>
+              );
+            })}
+
+            <TouchableOpacity
+              style={[styles.doneBtn, { backgroundColor: theme.gold, opacity: pickerTimes.length === 0 ? 0.5 : 1 }]}
+              onPress={saveTimePicker}
+              disabled={pickerTimes.length === 0}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.doneBtnText, { color: theme.onAccent, fontFamily: 'DMSans_500Medium' }]}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Edit-name action sheet */}
+      <Modal
+        visible={namePickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNamePickerOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity
+            style={styles.sheetOverlay}
+            activeOpacity={1}
+            onPress={() => setNamePickerOpen(false)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[
+                styles.sheet,
+                { backgroundColor: theme.bg, paddingBottom: insets.bottom + spacing.lg },
+              ]}
+            >
+              <View style={[styles.handle, { backgroundColor: theme.border }]} />
+              <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
+                What should we call you?
+              </Text>
+
+              <TextInput
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                placeholder="Your name"
+                placeholderTextColor={theme.text2}
+                autoFocus
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={saveName}
+                style={[
+                  styles.nameInput,
+                  { color: theme.text, backgroundColor: theme.card, borderColor: theme.border, fontFamily: 'DMSans_500Medium' },
+                ]}
+              />
+
+              <TouchableOpacity
+                style={[styles.doneBtn, { backgroundColor: theme.gold, opacity: nameDraft.trim().length === 0 ? 0.5 : 1 }]}
+                onPress={saveName}
+                disabled={nameDraft.trim().length === 0}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.doneBtnText, { color: theme.onAccent, fontFamily: 'DMSans_500Medium' }]}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -558,6 +789,14 @@ const styles = StyleSheet.create({
     fontSize: fontSize['2xl'],
     letterSpacing: -0.3,
     marginBottom: spacing.xs,
+  },
+  nameInput: {
+    width: '100%',
+    fontSize: fontSize.lg,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
+    borderRadius: radius['2xl'],
+    borderWidth: 1,
   },
   doneBtn: {
     alignItems: 'center',

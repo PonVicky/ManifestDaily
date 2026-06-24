@@ -44,34 +44,44 @@ function useStoreHydrated(): boolean {
 // Set back to false to restore the normal one-time onboarding behavior.
 const FORCE_ONBOARDING = false;
 
-// Soft paywall: non-premium users get this long after completing onboarding
-// before the tabs are gated behind the paywall screen on every launch.
-const PAYWALL_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
+// DEV-ONLY: flip to `true` locally to walk past the hard paywall without a real
+// or sandbox purchase (e.g. when testing the tabs in Expo Go, where RevenueCat
+// is unavailable and `isPremium` is always false). Gated behind `__DEV__` so it
+// is always `false` in a production build and can never ship a paywall bypass.
+const DEV_BYPASS_PAYWALL = __DEV__ && false;
 
 function NavigationGuard({ hydrated }: { hydrated: boolean }) {
   const hasOnboarded = useAppStore((s) => s.hasOnboarded) && !FORCE_ONBOARDING;
   const isPremium = useAppStore((s) => s.isPremium);
-  const paywallDismissed = useAppStore((s) => s.paywallDismissed);
-  const onboardingCompletedAt = useAppStore((s) => s.onboardingCompletedAt);
   const segments = useSegments();
   const router = useRouter();
 
-  const gracePeriodElapsed =
-    !!onboardingCompletedAt &&
-    Date.now() - new Date(onboardingCompletedAt).getTime() > PAYWALL_GRACE_PERIOD_MS;
-  const needsPaywall = hasOnboarded && !isPremium && gracePeriodElapsed && !paywallDismissed;
+  // Hard paywall: once onboarding is complete, a non-premium user (no active
+  // entitlement — including an active free trial, which RevenueCat reports as
+  // premium) is sent to the paywall on every launch with no way to bypass it.
+  // DEV_BYPASS_PAYWALL lets developers through; it is forced false in production.
+  const needsPaywall = hasOnboarded && !isPremium && !DEV_BYPASS_PAYWALL;
 
   useEffect(() => {
     if (!hydrated) return;
 
     const inOnboarding = segments[0] === '(onboarding)';
-    const onPaywall = inOnboarding && (segments as string[])[1] === 'paywall';
+    const step = (segments as string[])[1];
+    const onPaywall = inOnboarding && step === 'paywall';
+    const onAllset = inOnboarding && step === 'allset';
 
     if (!hasOnboarded && !inOnboarding) {
+      // Never onboarded: start the flow.
       router.replace('/(onboarding)/welcome');
     } else if (needsPaywall && !onPaywall) {
+      // Onboarded but no active entitlement: hard-gate to the paywall, every
+      // launch, with no way past it but to subscribe or restore.
       router.replace('/(onboarding)/paywall');
-    } else if (hasOnboarded && inOnboarding && !needsPaywall) {
+    } else if (hasOnboarded && inOnboarding && !needsPaywall && !onPaywall && !onAllset) {
+      // Onboarded and entitled (just purchased/restored): leave the onboarding
+      // stack for the app. The paywall and the "all set" celebration are
+      // exempt — the purchase flow navigates through them explicitly (paywall →
+      // allset → tabs) and must not be yanked straight to the tabs mid-way.
       router.replace('/(tabs)/');
     }
   }, [hydrated, hasOnboarded, needsPaywall, segments]);

@@ -205,8 +205,9 @@ export interface Dob {
 interface AppState {
   // Onboarding
   hasOnboarded: boolean;
-  // ISO timestamp set when completeOnboarding() runs; drives the soft
-  // paywall grace period.
+  // ISO timestamp set when completeOnboarding() runs. Retained as a record of
+  // when onboarding finished; no longer gates the paywall (the app is now a
+  // hard paywall — see NavigationGuard in app/_layout.tsx).
   onboardingCompletedAt: string | null;
   userName: string;
   userDob: Dob | null;
@@ -226,9 +227,6 @@ interface AppState {
   // Synced from RevenueCat (checkPremiumStatus) on app launch and after
   // purchase/restore.
   isPremium: boolean;
-  // Session-only: true when the user explicitly closes the paywall without
-  // purchasing. Resets to false on every app restart (not persisted).
-  paywallDismissed: boolean;
 
   // True once we've asked for the native store review popup. iOS/Android only
   // surface the prompt a few times a year regardless, so we gate it to a
@@ -284,7 +282,6 @@ interface AppState {
   setLastRescheduledAt: (ts: number | null) => void;
   completeOnboarding: () => void;
   setPremium: (value: boolean) => void;
-  dismissPaywall: () => void;
   setHasRequestedReview: (value: boolean) => void;
   nextAffirmation: () => void;
   prevAffirmation: () => void;
@@ -313,7 +310,6 @@ export const useAppStore = create<AppState>()(
       hasOnboarded: false,
       onboardingCompletedAt: null,
       isPremium: false,
-      paywallDismissed: false,
       hasRequestedReview: false,
       userName: '',
       userDob: null,
@@ -376,8 +372,6 @@ export const useAppStore = create<AppState>()(
       completeOnboarding: () => set({ hasOnboarded: true, onboardingCompletedAt: new Date().toISOString() }),
 
       setPremium: (value) => set({ isPremium: value }),
-
-      dismissPaywall: () => set({ paywallDismissed: true }),
 
       setHasRequestedReview: (value) => set({ hasRequestedReview: value }),
 
@@ -543,9 +537,11 @@ export const useAppStore = create<AppState>()(
       // v8: adds `pausedSession` for a focus session dismissed mid-run.
       // Existing installs have nothing paused.
       // v9: adds `isPremium` (synced from RevenueCat on launch) and
-      // `onboardingCompletedAt` (drives the soft paywall grace period).
-      // Existing installs start non-premium with no completion timestamp, so
-      // the grace-period gate doesn't retroactively apply to them.
+      // `onboardingCompletedAt`. (Historically `onboardingCompletedAt` drove a
+      // soft-paywall grace period; that leniency layer has since been removed in
+      // favour of a hard paywall, and the field is now just a record of when
+      // onboarding finished — see NavigationGuard in app/_layout.tsx.) Existing
+      // installs start non-premium with no completion timestamp.
       // v10: adds `customAffirmations` (user-authored affirmations). Existing
       // installs start with none.
       // v11: reminders went from a single `reminderTime`/`notificationId` to

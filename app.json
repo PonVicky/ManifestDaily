@@ -5,10 +5,10 @@
     "scheme": "manifest",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logos/app-icon-rounded-1024.png",
+    "icon": "./assets/logos/icon-store.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logos/icon-rounded.png",
       "resizeMode": "contain",
       "backgroundColor": "#FBF3E7"
     },
@@ -26,7 +26,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FAF1E4",
-        "foregroundImage": "./assets/logos/app-icon-rounded-1024.png"
+        "foregroundImage": "./assets/logos/icon-store.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.bepel.manifestdaily",
@@ -38,7 +38,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/logos/app-icon-rounded-1024.png"
+      "favicon": "./assets/logos/icon-store.png"
     },
     "plugins": [
       "expo-router",
@@ -47,7 +47,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/logos/app-icon-rounded-1024.png",
+          "icon": "./assets/logos/icon-store.png",
           "color": "#D6A87A"
         }
       ]

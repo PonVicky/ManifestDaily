@@ -31,7 +31,6 @@ export default function PaywallScreen() {
   const name = useAppStore((s) => s.userName);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
   const setPremium = useAppStore((s) => s.setPremium);
-  const dismissPaywall = useAppStore((s) => s.dismissPaywall);
   const insets = useSafeAreaInsets();
 
   const [selectedPlan, setSelectedPlan] = useState<string>('annual');
@@ -40,10 +39,24 @@ export default function PaywallScreen() {
 
   useEffect(() => {
     getOfferings().then(setOfferings);
-    // Trigger inference: if onboarding is already complete this is the post-grace
-    // soft paywall; otherwise it's the paywall step inside the onboarding flow.
+
+    const wasOnboarded = useAppStore.getState().hasOnboarded;
+
+    // Reaching the paywall means the onboarding questionnaire is finished.
+    // Persist that now (idempotent — skip if already complete so we don't reset
+    // onboardingCompletedAt on returning visits) so a user who does NOT
+    // subscribe and then backgrounds/force-quits is hard-gated straight back to
+    // this paywall on the next launch by NavigationGuard — never dropped back
+    // into onboarding from scratch.
+    if (!wasOnboarded) {
+      useAppStore.getState().completeOnboarding();
+    }
+
+    // Trigger inference: if onboarding was already complete this is a returning
+    // non-premium user being hard-gated at launch; otherwise it's the paywall
+    // step inside the onboarding flow. (Event values kept for analytics continuity.)
     trackEvent('paywall_viewed', {
-      trigger: useAppStore.getState().hasOnboarded ? 'soft' : 'post_onboarding',
+      trigger: wasOnboarded ? 'soft' : 'post_onboarding',
     });
   }, []);
 
@@ -95,24 +108,6 @@ export default function PaywallScreen() {
     }
   };
 
-  const handleClose = () => {
-    trackEvent('paywall_dismissed');
-    dismissPaywall();
-    // During onboarding the paywall is the second-to-last step. Closing it must
-    // still finish onboarding — route to the "All Set" screen, which calls
-    // completeOnboarding(). Otherwise the user lands on the tabs with
-    // hasOnboarded still false and the root guard bounces them back to welcome
-    // (an inescapable loop for anyone who doesn't purchase).
-    //
-    // When this is the post-onboarding *soft* paywall, hasOnboarded is already
-    // true, so just return to the app.
-    if (useAppStore.getState().hasOnboarded) {
-      router.replace('/(tabs)/');
-    } else {
-      router.replace('/(onboarding)/allset');
-    }
-  };
-
   const handleRestore = async () => {
     if (purchasing) return;
 
@@ -131,11 +126,11 @@ export default function PaywallScreen() {
   };
 
   const handleTerms = () => {
-    Linking.openURL('https://trymanifestdaily.com/terms');
+    Linking.openURL('https://manifestdaily.bepel.in/terms');
   };
 
   const handlePrivacy = () => {
-    Linking.openURL('https://trymanifestdaily.com/privacy');
+    Linking.openURL('https://manifestdaily.bepel.in/privacy');
   };
 
   return (
@@ -150,17 +145,6 @@ export default function PaywallScreen() {
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
-
-      {/* Close button */}
-      <TouchableOpacity
-        style={[
-          styles.closeBtn,
-          { top: insets.top + 16, backgroundColor: theme.bg2, borderColor: theme.border },
-        ]}
-        onPress={handleClose}
-      >
-        <Icon name="close" size={18} color={theme.text2} />
-      </TouchableOpacity>
 
       <ScrollView
         contentContainerStyle={[
@@ -340,17 +324,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 300,
-  },
-  closeBtn: {
-    position: 'absolute',
-    right: spacing.xl,
-    zIndex: 10,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollContent: {
     paddingHorizontal: spacing.xl,
