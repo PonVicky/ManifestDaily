@@ -13,7 +13,7 @@ type RevenueCatKeys = {
 };
 
 // RevenueCat entitlement identifier that unlocks ManifestDaily Pro features.
-export const ENTITLEMENT_ID = 'ManifestDaily Pro';
+export const ENTITLEMENT_ID = 'pro';
 
 function hasActiveEntitlement(customerInfo: CustomerInfo): boolean {
   return customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
