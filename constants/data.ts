@@ -578,6 +578,17 @@ export const PAYWALL_PLANS = [
   },
 ] as const;
 
+// Single source of truth for a plan's free-trial length: parsed from the plan's
+// `note` copy above (e.g. "3-day free trial", "7-day free trial · $3.33/mo").
+// Returns the day count for trial-bearing plans, or null for plans with no
+// trial (monthly, lifetime). Keep trial lengths defined only in PAYWALL_PLANS so
+// UI copy never drifts from a second hardcoded source.
+export function trialDaysForPlan(planId: string): number | null {
+  const note = PAYWALL_PLANS.find((p) => p.id === planId)?.note ?? '';
+  const match = note.match(/(\d+)-day free trial/);
+  return match ? Number(match[1]) : null;
+}
+
 export const PAYWALL_FEATURES = [
   { icon: 'sparkle', text: 'Unlimited personalized affirmations' },
   { icon: 'focus', text: 'Every focus length & ambient sound' },

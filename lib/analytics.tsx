@@ -18,6 +18,8 @@ export type AnalyticsEvent =
   | 'paywall_viewed'
   | 'purchase_started'
   | 'purchase_completed'
+  | 'purchase_pending'
+  | 'purchase_failed'
   | 'trial_started'
   | 'affirmation_viewed'
   | 'focus_session_completed'

@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import Purchases, {
   LOG_LEVEL,
   PURCHASES_ERROR_CODE,
+  INTRO_ELIGIBILITY_STATUS,
   CustomerInfo,
   PurchasesOffering,
   PurchasesPackage,
@@ -97,7 +98,7 @@ export async function getOfferings(): Promise<PurchasesOffering | null> {
 
 type PurchaseResult =
   | { success: true; isPremium: boolean }
-  | { success: false; cancelled?: boolean; error?: unknown };
+  | { success: false; cancelled?: boolean; pending?: boolean; error?: unknown };
 
 /** Purchases a package and reports whether the Pro entitlement is now active. */
 export async function purchasePackage(pkg: PurchasesPackage): Promise<PurchaseResult> {
@@ -107,6 +108,15 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<PurchaseRe
   } catch (error: any) {
     if (error?.userCancelled) {
       return { success: false, cancelled: true };
+    }
+    // Deferred payment method (e.g. UPI Autopay mandate on Android, or
+    // Ask-to-Buy / SCA on iOS): the purchase is PENDING, not failed. The store
+    // will confirm it asynchronously and the entitlement will arrive via the
+    // customer-info listener (see addEntitlementListener). Surface this as a
+    // distinct state so callers don't show a misleading "Purchase Failed".
+    if (error?.code === PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR) {
+      if (__DEV__) console.log('[RevenueCat] Purchase pending — deferred payment awaiting confirmation.');
+      return { success: false, pending: true };
     }
     // The product is already owned on this Apple ID (e.g. the user reinstalled,
     // or is on a different device) but the entitlement hasn't been synced to
@@ -130,6 +140,58 @@ export async function restorePurchases(): Promise<PurchaseResult> {
   } catch (error) {
     if (__DEV__) console.error('[RevenueCat] restorePurchases failed:', error);
     return { success: false, error };
+  }
+}
+
+/**
+ * Subscribes to RevenueCat customer-info updates and reports the current Pro
+ * entitlement state on every change. This catches purchases that complete
+ * asynchronously *after* purchasePackage() has already returned — e.g. a UPI
+ * Autopay mandate or an Ask-to-Buy approval that confirms while the user is
+ * still sitting on the paywall. Returns an unsubscribe function; call it on
+ * unmount. No-ops (returns a no-op unsubscribe) when the SDK isn't configured,
+ * so it's safe to call in Expo Go.
+ */
+export function addEntitlementListener(onUpdate: (isPremium: boolean) => void): () => void {
+  if (!configured) return () => {};
+  const listener = (customerInfo: CustomerInfo) => {
+    onUpdate(hasActiveEntitlement(customerInfo));
+  };
+  Purchases.addCustomerInfoUpdateListener(listener);
+  return () => Purchases.removeCustomerInfoUpdateListener(listener);
+}
+
+/**
+ * Returns a map of productId -> "ineligible for the introductory/trial offer".
+ * `true` means the user has already used the trial for that product (charge
+ * them normally, hide trial copy); `false` means eligible OR unknown — the safe
+ * default that keeps showing the trial offer.
+ *
+ * iOS only. checkTrialOrIntroductoryPriceEligibility ALWAYS returns UNKNOWN on
+ * Android, so we never derive an ineligible state there — Android trial
+ * detection is a separate, future task. On Android (and on any error / when the
+ * SDK isn't configured) every product defaults to `false` (eligible).
+ */
+export async function getTrialEligibility(productIds: string[]): Promise<Record<string, boolean>> {
+  const allEligible = () =>
+    productIds.reduce<Record<string, boolean>>((acc, id) => {
+      acc[id] = false;
+      return acc;
+    }, {});
+
+  if (Platform.OS !== 'ios' || !configured) {
+    return allEligible();
+  }
+
+  try {
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility(productIds);
+    return productIds.reduce<Record<string, boolean>>((acc, id) => {
+      acc[id] = result[id]?.status === INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_INELIGIBLE;
+      return acc;
+    }, {});
+  } catch (error) {
+    if (__DEV__) console.error('[RevenueCat] eligibility check failed:', error);
+    return allEligible();
   }
 }
 

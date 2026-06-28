@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Alert, ActivityIndicator, ImageBackground, Linking, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Alert, ActivityIndicator, ImageBackground, Linking, Platform, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,8 +7,14 @@ import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { spacing, radius, fontSize } from '../../constants/tokens';
-import { PAYWALL_PLANS, PAYWALL_FEATURES, GOALS } from '../../constants/data';
-import { getOfferings, purchasePackage, restorePurchases } from '../../src/lib/revenueCat';
+import { PAYWALL_PLANS, PAYWALL_FEATURES, GOALS, trialDaysForPlan } from '../../constants/data';
+import {
+  getOfferings,
+  purchasePackage,
+  restorePurchases,
+  getTrialEligibility,
+  addEntitlementListener,
+} from '../../src/lib/revenueCat';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import Mascot from '../../components/ui/Mascot';
@@ -36,9 +42,23 @@ export default function PaywallScreen() {
   const [selectedPlan, setSelectedPlan] = useState<string>('annual');
   const [offerings, setOfferings] = useState<PurchasesOffering | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  // productId -> already used trial (ineligible). iOS only; empty/false elsewhere.
+  const [ineligibleByProductId, setIneligibleByProductId] = useState<Record<string, boolean>>({});
+
+  // The listener effect below is mount-only; read the live selected plan through
+  // a ref so a late entitlement confirmation tags analytics with the current
+  // selection rather than the stale value captured at mount.
+  const selectedPlanRef = useRef(selectedPlan);
+  selectedPlanRef.current = selectedPlan;
 
   useEffect(() => {
     getOfferings().then(setOfferings);
+
+    // Trial eligibility for the two trial-bearing plans (iOS only — see
+    // getTrialEligibility). Drives whether trial copy is shown per selected plan.
+    getTrialEligibility([PACKAGE_TYPE_MAP.weekly, PACKAGE_TYPE_MAP.annual]).then(
+      setIneligibleByProductId,
+    );
 
     const wasOnboarded = useAppStore.getState().hasOnboarded;
 
@@ -60,6 +80,20 @@ export default function PaywallScreen() {
     });
   }, []);
 
+  // Catch entitlements that activate asynchronously while the user sits on the
+  // paywall — e.g. a UPI Autopay mandate or Ask-to-Buy approval that confirms
+  // after purchasePackage() already returned "pending". When it lands, advance
+  // through the normal success path. Cleaned up on unmount.
+  useEffect(() => {
+    const unsubscribe = addEntitlementListener((isPremium) => {
+      if (!isPremium) return;
+      trackEvent('purchase_completed', { plan: selectedPlanRef.current, source: 'listener' });
+      setPremium(true);
+      router.replace('/(onboarding)/allset');
+    });
+    return unsubscribe;
+  }, []);
+
   const goalLabel = GOALS.find((g) => g.id === selectedGoals[0])?.label ?? 'manifestation';
 
   const findPackage = (planId: string): PurchasesPackage | null => {
@@ -71,6 +105,16 @@ export default function PaywallScreen() {
       ) ?? null
     );
   };
+
+  // Trial state for the currently selected plan, driving all trial UI/copy.
+  // `selectedTrialDays` is the plan's trial length (null for non-trial plans).
+  // A user is ineligible only on iOS (Android eligibility is always "unknown",
+  // so we keep showing the trial there). `showTrial` gates banner/CTA/footnote.
+  const selectedProductId = PACKAGE_TYPE_MAP[selectedPlan];
+  const selectedTrialDays = trialDaysForPlan(selectedPlan);
+  const selectedPriceLabel = PAYWALL_PLANS.find((p) => p.id === selectedPlan)?.price ?? '';
+  const isIneligible = Platform.OS === 'ios' && !!ineligibleByProductId[selectedProductId];
+  const showTrial = selectedTrialDays !== null && !isIneligible;
 
   const showPurchaseError = () =>
     Alert.alert('Purchase Failed', 'Something went wrong. Please try again.', [{ text: 'OK' }]);
@@ -93,9 +137,10 @@ export default function PaywallScreen() {
     if (result.success) {
       if (result.isPremium) {
         trackEvent('purchase_completed', { plan: selectedPlan });
-        // Weekly (3-day) and annual (7-day) include a free trial; monthly and
-        // lifetime do not. Derive eligibility from the plan's trial note.
-        if (PAYWALL_PLANS.find((p) => p.id === selectedPlan)?.note.includes('trial')) {
+        // Only a real trial start: the plan must offer a trial AND the user must
+        // be eligible (showTrial). An ineligible user on a trial-bearing plan is
+        // charged immediately, so it isn't a trial.
+        if (showTrial) {
           trackEvent('trial_started', { plan: selectedPlan });
         }
         setPremium(true);
@@ -103,7 +148,21 @@ export default function PaywallScreen() {
       } else {
         showPurchaseError();
       }
+    } else if (result.pending) {
+      // Deferred payment (e.g. UPI Autopay): NOT a failure. Reassure the user;
+      // the entitlement listener will advance them automatically once confirmed.
+      trackEvent('purchase_pending', { plan: selectedPlan });
+      if (__DEV__) console.log('[Paywall] Purchase pending — awaiting store confirmation.');
+      Alert.alert(
+        'Payment processing',
+        "We'll unlock Pro automatically once your payment is confirmed. You can keep this screen open or come back anytime.",
+        [{ text: 'OK' }],
+      );
     } else if (!result.cancelled) {
+      trackEvent('purchase_failed', {
+        plan: selectedPlan,
+        code: (result.error as { code?: string } | undefined)?.code,
+      });
       showPurchaseError();
     }
   };
@@ -191,11 +250,13 @@ export default function PaywallScreen() {
         <View style={styles.bottomSection}>
           {/* Plan selector + trial note */}
           <View style={styles.plansSection}>
-            <View style={[styles.trialBanner, { backgroundColor: theme.accentTint, borderColor: theme.goldSoft }]}>
-              <Text style={[styles.trialBannerText, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
-                🌟 3-day free trial — cancel anytime
-              </Text>
-            </View>
+            {showTrial && (
+              <View style={[styles.trialBanner, { backgroundColor: theme.accentTint, borderColor: theme.goldSoft }]}>
+                <Text style={[styles.trialBannerText, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                  🌟 {selectedTrialDays}-day free trial — cancel anytime
+                </Text>
+              </View>
+            )}
             <View style={styles.planRow}>
               {PAYWALL_PLANS.map((plan) => {
                 const isSelected = selectedPlan === plan.id;
@@ -277,7 +338,12 @@ export default function PaywallScreen() {
           </Text>
 
           <View style={styles.ctaWrap}>
-            <Button label="Start 3-day free trial" onPress={handleStart} variant="primary" disabled={purchasing} />
+            <Button
+              label={showTrial ? `Start ${selectedTrialDays}-day free trial` : 'Subscribe now'}
+              onPress={handleStart}
+              variant="primary"
+              disabled={purchasing}
+            />
             {purchasing && (
               <View style={styles.ctaSpinner}>
                 <ActivityIndicator color={theme.onAccent} />
@@ -286,7 +352,9 @@ export default function PaywallScreen() {
           </View>
 
           <Text style={[styles.trialNote, { color: theme.text, fontFamily: 'DMSans_400Regular' }]}>
-            Free for 3 days, then $39.99/yr · Cancel anytime
+            {showTrial
+              ? `Free for ${selectedTrialDays} days, then ${selectedPriceLabel} · Cancel anytime`
+              : `${selectedPriceLabel} · Cancel anytime`}
           </Text>
 
           {/* Footer links */}
