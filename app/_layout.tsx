@@ -19,8 +19,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../hooks/useTheme';
 import { initRevenueCat, checkPremiumStatus } from '../src/lib/revenueCat';
-import { registerDailyReminderTask, maybeRescheduleOnForeground } from '../lib/reminderScheduler';
+import { registerDailyReminderTask, maybeRescheduleOnForeground, scheduleStreakReminder } from '../lib/reminderScheduler';
 import { AnalyticsProvider } from '../lib/analytics';
+import StreakBanner from '../components/ui/StreakBanner';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -48,7 +49,7 @@ const FORCE_ONBOARDING = false;
 // or sandbox purchase (e.g. when testing the tabs in Expo Go, where RevenueCat
 // is unavailable and `isPremium` is always false). Gated behind `__DEV__` so it
 // is always `false` in a production build and can never ship a paywall bypass.
-const DEV_BYPASS_PAYWALL = __DEV__ && false;
+const DEV_BYPASS_PAYWALL = __DEV__ && true;
 
 function NavigationGuard({ hydrated }: { hydrated: boolean }) {
   const hasOnboarded = useAppStore((s) => s.hasOnboarded) && !FORCE_ONBOARDING;
@@ -146,9 +147,22 @@ export default function RootLayout() {
   // store hydrated since it reconciles ids/timestamp against the live store.
   useEffect(() => {
     if (!hydrated) return;
+    // Register today's app open toward the streak (keeps it alive without a
+    // session, drops the pop-down banner on the first open of a new day) and
+    // re-point the streak-saver nudge to tomorrow night. Gated on hasOnboarded
+    // so onboarding launches don't start a streak or flash the banner.
+    const runOpenCheckIn = () => {
+      const s = useAppStore.getState();
+      if (!s.hasOnboarded) return;
+      s.checkInToday();
+      scheduleStreakReminder();
+    };
+    runOpenCheckIn();
     maybeRescheduleOnForeground();
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') maybeRescheduleOnForeground();
+      if (next !== 'active') return;
+      runOpenCheckIn();
+      maybeRescheduleOnForeground();
     });
     return () => sub.remove();
   }, [hydrated]);
@@ -229,6 +243,7 @@ export default function RootLayout() {
                 }}
               />
             </Stack>
+            <StreakBanner />
             <StatusBar style={darkMode ? 'light' : 'dark'} />
           </View>
         </SafeAreaProvider>

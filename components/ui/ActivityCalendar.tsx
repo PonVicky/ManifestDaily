@@ -7,10 +7,10 @@ const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function ActivityCalendar() {
   const { theme } = useTheme();
-  const sessions = useAppStore((s) => s.sessions);
+  const streakDays = useAppStore((s) => s.streakDays);
   const { daysInMonth, firstWeekday, activeDays, today } = useMemo(
-    () => buildMonthActivity(sessions),
-    [sessions],
+    () => buildMonthActivity(streakDays),
+    [streakDays],
   );
 
   const cells: Array<number | null> = [

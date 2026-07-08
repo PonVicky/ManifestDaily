@@ -8,6 +8,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAppStore } from '../store/useAppStore';
 import Icon, { IconName } from '../components/ui/Icon';
+import WhatsNewSheet, { WHATS_NEW_VERSION } from '../components/ui/WhatsNewSheet';
 import { GOALS, GoalId, REMINDER_OPTIONS, ReminderTime } from '../constants/data';
 import { radius, spacing, fontSize, shadow, shadowDark } from '../constants/tokens';
 
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const [goalPickerOpen, setGoalPickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [namePickerOpen, setNamePickerOpen] = useState(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   // Working copy of the name while the edit sheet is open, committed on "Done".
   const [nameDraft, setNameDraft] = useState('');
   // Local working copy of the reminder times while the picker sheet is open, so
@@ -251,7 +253,7 @@ export default function SettingsScreen() {
 
       <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top : spacing.lg }]}>
         <Text style={[styles.title, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
-          Appearance
+          Settings
         </Text>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -310,6 +312,7 @@ export default function SettingsScreen() {
             onValueChange={toggleDarkMode}
             trackColor={{ false: theme.border, true: theme.gold }}
             thumbColor={theme.white}
+            style={styles.switch}
           />
         </View>
 
@@ -325,8 +328,8 @@ export default function SettingsScreen() {
               <Text style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
                 {notificationsOn
                   ? `On — ${activeReminderTimes
-                      .map((id) => REMINDER_OPTIONS.find((r) => r.id === id)?.label ?? id)
-                      .join(', ')}`
+                    .map((id) => REMINDER_OPTIONS.find((r) => r.id === id)?.label ?? id)
+                    .join(', ')}`
                   : 'Off — no reminders'}
               </Text>
             </View>
@@ -336,6 +339,7 @@ export default function SettingsScreen() {
             onValueChange={handleNotificationsToggle}
             trackColor={{ false: theme.border, true: theme.gold }}
             thumbColor={theme.white}
+            style={styles.switch}
           />
         </View>
 
@@ -465,6 +469,27 @@ export default function SettingsScreen() {
           <Icon name="arrowR" size={18} color={theme.text2} />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh }]}
+          onPress={() => setWhatsNewOpen(true)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: theme.bg2 }]}>
+              <Icon name="sparkle" size={18} color={theme.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                What&rsquo;s New
+              </Text>
+              <Text style={[styles.rowSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
+                Fresh in v{WHATS_NEW_VERSION}
+              </Text>
+            </View>
+          </View>
+          <Icon name="arrowR" size={18} color={theme.text2} />
+        </TouchableOpacity>
+
         <View style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border, ...sh, opacity: 0.7 }]}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: theme.bg2 }]}>
@@ -484,7 +509,7 @@ export default function SettingsScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
-            ManifestDaily v1.0.0
+            ManifestDaily v{WHATS_NEW_VERSION}
           </Text>
           <Text style={[styles.footerText, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}>
             Made with ♥ by Bepel
@@ -492,26 +517,19 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      {/* Change-goal action sheet */}
+      {/* Change-goal sheet — native pageSheet so it swipe-down dismisses */}
       <Modal
         visible={goalPickerOpen}
-        transparent
-        animationType="fade"
+        animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={closeGoalPicker}
       >
-        <TouchableOpacity
-          style={styles.sheetOverlay}
-          activeOpacity={1}
-          onPress={closeGoalPicker}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={[
-              styles.sheet,
-              { backgroundColor: theme.bg, paddingBottom: insets.bottom + spacing.lg },
-            ]}
+        <View style={[styles.sheetPage, { backgroundColor: theme.bg }]}>
+          <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          <ScrollView
+            contentContainerStyle={[styles.sheetPageContent, { paddingBottom: insets.bottom + spacing.lg }]}
+            showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.handle, { backgroundColor: theme.border }]} />
             <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
               Choose your goals
             </Text>
@@ -553,30 +571,23 @@ export default function SettingsScreen() {
                 Done
               </Text>
             </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </ScrollView>
+        </View>
       </Modal>
 
-      {/* Reminder-times action sheet */}
+      {/* Reminder-times sheet — native pageSheet so it swipe-down dismisses */}
       <Modal
         visible={timePickerOpen}
-        transparent
-        animationType="fade"
+        animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={() => setTimePickerOpen(false)}
       >
-        <TouchableOpacity
-          style={styles.sheetOverlay}
-          activeOpacity={1}
-          onPress={() => setTimePickerOpen(false)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={[
-              styles.sheet,
-              { backgroundColor: theme.bg, paddingBottom: insets.bottom + spacing.lg },
-            ]}
+        <View style={[styles.sheetPage, { backgroundColor: theme.bg }]}>
+          <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          <ScrollView
+            contentContainerStyle={[styles.sheetPageContent, { paddingBottom: insets.bottom + spacing.lg }]}
+            showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.handle, { backgroundColor: theme.border }]} />
             <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
               When should we remind you?
             </Text>
@@ -624,68 +635,59 @@ export default function SettingsScreen() {
                 Done
               </Text>
             </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </ScrollView>
+        </View>
       </Modal>
 
-      {/* Edit-name action sheet */}
+      {/* Edit-name sheet — native pageSheet so it swipe-down dismisses */}
       <Modal
         visible={namePickerOpen}
-        transparent
-        animationType="fade"
+        animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={() => setNamePickerOpen(false)}
       >
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={[styles.sheetPage, { backgroundColor: theme.bg }]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <TouchableOpacity
-            style={styles.sheetOverlay}
-            activeOpacity={1}
-            onPress={() => setNamePickerOpen(false)}
-          >
-            <TouchableOpacity
-              activeOpacity={1}
+          <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          <View style={[styles.sheetPageContent, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
+              What should we call you?
+            </Text>
+
+            <TextInput
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              placeholder="Your name"
+              placeholderTextColor={theme.text2}
+              autoFocus
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={saveName}
               style={[
-                styles.sheet,
-                { backgroundColor: theme.bg, paddingBottom: insets.bottom + spacing.lg },
+                styles.nameInput,
+                { color: theme.text, backgroundColor: theme.card, borderColor: theme.border, fontFamily: 'DMSans_500Medium' },
               ]}
+            />
+
+            <TouchableOpacity
+              style={[styles.doneBtn, { backgroundColor: theme.gold, opacity: nameDraft.trim().length === 0 ? 0.5 : 1 }]}
+              onPress={saveName}
+              disabled={nameDraft.trim().length === 0}
+              activeOpacity={0.85}
             >
-              <View style={[styles.handle, { backgroundColor: theme.border }]} />
-              <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
-                What should we call you?
+              <Text style={[styles.doneBtnText, { color: theme.onAccent, fontFamily: 'DMSans_500Medium' }]}>
+                Done
               </Text>
-
-              <TextInput
-                value={nameDraft}
-                onChangeText={setNameDraft}
-                placeholder="Your name"
-                placeholderTextColor={theme.text2}
-                autoFocus
-                autoCapitalize="words"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={saveName}
-                style={[
-                  styles.nameInput,
-                  { color: theme.text, backgroundColor: theme.card, borderColor: theme.border, fontFamily: 'DMSans_500Medium' },
-                ]}
-              />
-
-              <TouchableOpacity
-                style={[styles.doneBtn, { backgroundColor: theme.gold, opacity: nameDraft.trim().length === 0 ? 0.5 : 1 }]}
-                onPress={saveName}
-                disabled={nameDraft.trim().length === 0}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.doneBtnText, { color: theme.onAccent, fontFamily: 'DMSans_500Medium' }]}>
-                  Done
-                </Text>
-              </TouchableOpacity>
             </TouchableOpacity>
-          </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* What's-new release notes */}
+      <WhatsNewSheet visible={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} />
     </View>
   );
 }
@@ -747,6 +749,9 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontSize: fontSize.md },
   rowSub: { fontSize: 12, marginTop: 1 },
+  switch: {
+    transform: [{ scaleX: 0.82 }, { scaleY: 0.82 }],
+  },
   sectionLabel: {
     fontSize: fontSize.xs,
     letterSpacing: 0.6,
@@ -773,14 +778,10 @@ const styles = StyleSheet.create({
   },
   noticeTitle: { fontSize: fontSize.base, marginBottom: 4 },
   noticeBody: { fontSize: 12, lineHeight: 18 },
-  sheetOverlay: {
+  sheetPage: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
   },
-  sheet: {
-    borderTopLeftRadius: radius['3xl'],
-    borderTopRightRadius: radius['3xl'],
+  sheetPageContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     gap: spacing.md,

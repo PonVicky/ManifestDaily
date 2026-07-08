@@ -72,8 +72,8 @@ export default function ProgressScreen() {
   useAppStore((s) => s.sessions);
   const insight = useAppStore((s) => s.focusInsight)();
   const streak = useAppStore((s) => s.streak)();
-  const sessions = useAppStore((s) => s.sessions);
-  const monthLabel = useMemo(() => buildMonthActivity(sessions).monthLabel, [sessions]);
+  const streakDays = useAppStore((s) => s.streakDays);
+  const monthLabel = useMemo(() => buildMonthActivity(streakDays).monthLabel, [streakDays]);
   const insets = useSafeAreaInsets();
 
   return (
@@ -137,11 +137,12 @@ export default function ProgressScreen() {
         </View>
       </View>
 
-      {/* First-time nudge — only while there's no streak or sessions yet.
-          Styled like the insight box below (its data-present counterpart) so it
-          reads as a hint on a solid surface instead of muted text floating on
-          the illustrated background. */}
-      {streak === 0 && totalSessions === 0 && (
+      {/* First-time nudge — only while no session has been logged yet. Keyed
+          off sessions alone (not the streak, which now ticks on app open) so
+          new users still see it. Styled like the insight box below (its
+          data-present counterpart) so it reads as a hint on a solid surface
+          instead of muted text floating on the illustrated background. */}
+      {totalSessions === 0 && (
         <View
           style={[
             styles.insightBox,
@@ -150,7 +151,7 @@ export default function ProgressScreen() {
         >
           <Icon name="sparkle" size={18} color={theme.gold} fill={theme.gold} />
           <Text style={[styles.insightText, { color: theme.text, fontFamily: 'DMSans_400Regular' }]}>
-            Complete your first session to start building your streak
+            Complete your first session to start logging your focus time
           </Text>
         </View>
       )}

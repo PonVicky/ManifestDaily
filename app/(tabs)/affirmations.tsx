@@ -44,6 +44,9 @@ export default function AffirmationsScreen() {
   const customAffirmations = useAppStore((s) => s.customAffirmations);
   const toggleSaveAffirmation = useAppStore((s) => s.toggleSaveAffirmation);
   const deleteCustomAffirmation = useAppStore((s) => s.deleteCustomAffirmation);
+  const lastReflectFilter = useAppStore((s) => s.lastReflectFilter);
+  const lastReflectKey = useAppStore((s) => s.lastReflectKey);
+  const setLastReflectPosition = useAppStore((s) => s.setLastReflectPosition);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -53,6 +56,11 @@ export default function AffirmationsScreen() {
   const lastIndex = useRef(0);
   // Guards the one-time jump onto the first real slide after layout.
   const didInit = useRef(false);
+  // Guards the one-time restore of the last-viewed slide from a previous app
+  // session. Only fires on the feed's first successful layout of the whole
+  // component lifetime — manual filter switches after that still land on the
+  // first slide, matching the existing behavior below.
+  const restoredPosition = useRef(false);
   // Each slide is exactly the feed's visible viewport tall (measured on layout),
   // so content centers and the list snaps cleanly with no leftover tail at the
   // bottom. `slideHRef` mirrors the state for use inside scroll callbacks.
@@ -127,6 +135,21 @@ export default function AffirmationsScreen() {
     }
   }, [loop]);
 
+  // Jumps to the slide the user was reading last time they had the app open,
+  // if it's still in the current (matching) filter's list. Runs once per app
+  // session, after initLoop so it wins the final scroll position.
+  const applyRestoredPosition = useCallback(() => {
+    if (restoredPosition.current || slideHRef.current <= 0) return;
+    restoredPosition.current = true;
+    if (lastReflectFilter !== filter) return;
+    const idx = items.findIndex((it) => it.key === lastReflectKey);
+    if (idx <= 0) return;
+    lastIndex.current = idx;
+    setActiveIndex(idx);
+    const y = loop ? (idx + 1) * slideHRef.current : idx * slideHRef.current;
+    scrollViewRef.current?.scrollTo({ y, animated: false });
+  }, [filter, items, loop, lastReflectFilter, lastReflectKey]);
+
   // Measure the feed's visible height so each slide is exactly one page tall.
   const handleFeedLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -135,7 +158,8 @@ export default function AffirmationsScreen() {
       setSlideH(h);
     }
     initLoop();
-  }, [initLoop]);
+    applyRestoredPosition();
+  }, [initLoop, applyRestoredPosition]);
 
   // Tracks the slide continuously while scrolling: brightens the incoming slide
   // smoothly and ticks a haptic the moment you cross into a new affirmation.
@@ -145,8 +169,10 @@ export default function AffirmationsScreen() {
       lastIndex.current = realIndex;
       setActiveIndex(realIndex);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const item = items[realIndex];
+      if (item) setLastReflectPosition(filter, item.key);
     }
-  }, [total, loop]);
+  }, [total, loop, items, filter, setLastReflectPosition]);
 
   // When a swipe settles on a cloned edge slide, jump (without animation) to the
   // matching real slide so the next swipe continues seamlessly in either direction.
@@ -165,7 +191,8 @@ export default function AffirmationsScreen() {
   // clone) so the user can immediately scroll up into the loop as well.
   const handleContentSizeChange = useCallback(() => {
     initLoop();
-  }, [initLoop]);
+    applyRestoredPosition();
+  }, [initLoop, applyRestoredPosition]);
 
   const handleSave = useCallback((text: string) => {
     toggleSaveAffirmation(text);

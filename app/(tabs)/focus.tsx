@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
@@ -40,6 +41,12 @@ export default function FocusScreen() {
   const recent = useAppStore((s) => s.recentSessions)();
   const insets = useSafeAreaInsets();
   const sh = darkMode ? shadowDark.sm : shadow.sm;
+
+  // `recent` comes back newest-first from the store; flipping the order here
+  // (rather than in the store) keeps recentSessions() untouched for anything
+  // else that reads it.
+  const [recentOldestFirst, setRecentOldestFirst] = useState(false);
+  const orderedRecent = recentOldestFirst ? [...recent].reverse() : recent;
 
   // A session that was swiped away mid-run is paused, not lost — offer to
   // continue it instead of "Begin" until the user picks it back up.
@@ -301,20 +308,39 @@ export default function FocusScreen() {
 
           {/* Recent sessions */}
           <View style={styles.recentSection}>
-            <Text
-              style={[
-                styles.sectionLabel,
-                {
-                  color: theme.text,
-                  fontFamily: 'DMSans_500Medium',
-                  textShadowColor: theme.bg,
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: 4,
-                },
-              ]}
-            >
-              RECENT
-            </Text>
+            <View style={styles.recentHeader}>
+              <Text
+                style={[
+                  styles.sectionLabel,
+                  {
+                    color: theme.text,
+                    fontFamily: 'DMSans_500Medium',
+                    textShadowColor: theme.bg,
+                    textShadowOffset: { width: 0, height: 0 },
+                    textShadowRadius: 4,
+                  },
+                ]}
+              >
+                RECENT
+              </Text>
+              {recent.length > 1 && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setRecentOldestFirst((v) => !v);
+                  }}
+                  style={[
+                    styles.sortPill,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
+                  <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12.5, color: theme.text }}>
+                    {recentOldestFirst ? 'Oldest first' : 'Newest first'}
+                  </Text>
+                  <Icon name="chevD" size={12} color={theme.text2} />
+                </Pressable>
+              )}
+            </View>
             {recent.length === 0 ? (
               <View
                 style={[
@@ -335,7 +361,7 @@ export default function FocusScreen() {
                 </Text>
               </View>
             ) : (
-              recent.map((session, i) => (
+              orderedRecent.map((session, i) => (
                 <View
                   key={i}
                   style={[
@@ -472,6 +498,20 @@ const styles = StyleSheet.create({
   },
   recentSection: {
     gap: spacing.md,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sortPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   recentRow: {
     flexDirection: 'row',

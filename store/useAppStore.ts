@@ -36,12 +36,6 @@ export interface SessionLog {
   type?: 'focus' | 'breathing';
 }
 
-// Breathing sessions show up in the Recent list but — unlike focus sessions —
-// don't count toward the day streak, activity calendar, or progress stats.
-function isFocusSession(s: SessionLog): boolean {
-  return s.type !== 'breathing';
-}
-
 // Display-ready shape for the "Recent" list in the Focus screen.
 export interface RecentSession {
   duration: FocusDuration;
@@ -64,8 +58,8 @@ const MONTHS_FULL = [
 ];
 
 // Calendar-month view of activity for the "Month dots" display: which days
-// of the current month have a logged session, plus enough metadata to lay
-// out a 7-column grid aligned to weekdays.
+// of the current month the streak was kept (app opened or a session logged),
+// plus enough metadata to lay out a 7-column grid aligned to weekdays.
 export interface MonthActivity {
   monthLabel: string;
   daysInMonth: number;
@@ -75,10 +69,14 @@ export interface MonthActivity {
 }
 
 // Exported so components can compute this with `useMemo` off the stable
-// `sessions` array, instead of via a store selector — a selector that calls
+// `streakDays` array, instead of via a store selector — a selector that calls
 // this directly would return a fresh object/Set every render and trigger an
 // infinite re-render loop.
-export function buildMonthActivity(sessions: SessionLog[]): MonthActivity {
+//
+// `streakDays` entries are `startOfDay` keys, i.e. `Date.UTC(...)` of the LOCAL
+// y/m/d, so they must be read back with UTC getters to recover the original
+// local day without a timezone off-by-one.
+export function buildMonthActivity(streakDays: number[]): MonthActivity {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -86,11 +84,10 @@ export function buildMonthActivity(sessions: SessionLog[]): MonthActivity {
   const firstWeekday = new Date(year, month, 1).getDay();
 
   const activeDays = new Set<number>();
-  for (const s of sessions) {
-    if (!isFocusSession(s)) continue;
-    const d = new Date(s.date);
-    if (d.getFullYear() === year && d.getMonth() === month) {
-      activeDays.add(d.getDate());
+  for (const key of streakDays) {
+    const d = new Date(key);
+    if (d.getUTCFullYear() === year && d.getUTCMonth() === month) {
+      activeDays.add(d.getUTCDate());
     }
   }
 
@@ -132,19 +129,13 @@ export function isStreakMilestone(streak: number): boolean {
   return STREAK_MILESTONES.includes(streak);
 }
 
-// Streak data derived from real session dates: how many consecutive calendar
-// days (ending today, with a one-day grace period so the streak doesn't drop
-// before today's session is logged) have at least one session, and the
-// longest such run ever found in the session history. `isMilestone` is true
-// when the current streak lands exactly on a celebrated milestone.
-export function computeStreak(sessions: SessionLog[]): { currentStreak: number; longestStreak: number; isMilestone: boolean } {
-  const focusSessions = sessions.filter(isFocusSession);
-  if (focusSessions.length === 0) return { currentStreak: 0, longestStreak: 0, isMilestone: false };
-
-  const days = new Set<number>();
-  for (const s of focusSessions) {
-    days.add(startOfDay(new Date(s.date)));
-  }
+// Core streak math over a set of `startOfDay` day-keys: how many consecutive
+// calendar days (ending today, with a one-day grace period so the streak
+// doesn't drop before today is registered) are present, and the longest such
+// run ever found. Shared by the live `streakDays` selector and the
+// session-based `computeStreak` wrapper below.
+export function computeStreakFromDays(days: Set<number>): { currentStreak: number; longestStreak: number } {
+  if (days.size === 0) return { currentStreak: 0, longestStreak: 0 };
 
   const today = startOfDay(new Date());
   const yesterday = today - DAY_MS;
@@ -168,17 +159,53 @@ export function computeStreak(sessions: SessionLog[]): { currentStreak: number; 
     prev = day;
   }
 
+  return { currentStreak, longestStreak };
+}
+
+// Streak data derived from real session dates. Kept as a thin wrapper over
+// `computeStreakFromDays` so the migration code that recomputes `bestStreak`
+// from `sessions` (v6/v15) keeps working unchanged. `isMilestone` is true when
+// the current streak lands exactly on a celebrated milestone.
+export function computeStreak(sessions: SessionLog[]): { currentStreak: number; longestStreak: number; isMilestone: boolean } {
+  const days = new Set<number>();
+  for (const s of sessions) {
+    days.add(startOfDay(new Date(s.date)));
+  }
+  const { currentStreak, longestStreak } = computeStreakFromDays(days);
   return { currentStreak, longestStreak, isMilestone: isStreakMilestone(currentStreak) };
+}
+
+// Shared side-effects for logging any completed session — focus and
+// breathing sessions count identically toward total sessions, focus hours,
+// and the day streak, so both `logSession` and `logBreathingSession` funnel
+// through here instead of duplicating the bookkeeping.
+function recordSession(
+  state: { sessions: SessionLog[]; totalSessions: number; focusHours: number; bestStreak: number; streakDays: number[] },
+  session: SessionLog,
+) {
+  const sessions = [session, ...state.sessions];
+  // Doing a session always keeps today's streak too, even in the edge case
+  // where the app-open check-in didn't run (e.g. a background session
+  // completion). Total sessions / focus hours are unaffected by this.
+  const sessionDay = startOfDay(new Date(session.date));
+  const streakDays = state.streakDays.includes(sessionDay)
+    ? state.streakDays
+    : [...state.streakDays, sessionDay];
+  const { currentStreak, longestStreak } = computeStreakFromDays(new Set(streakDays));
+  return {
+    sessions,
+    streakDays,
+    totalSessions: state.totalSessions + 1,
+    focusHours: Math.round((state.focusHours + session.minutes / 60) * 100) / 100,
+    bestStreak: Math.max(state.bestStreak, currentStreak, longestStreak),
+  };
 }
 
 // Derive the "most consistent" insight from real session timestamps using the
 // last 10 sessions. Returns null when there's nothing to say yet.
 function buildInsight(sessions: SessionLog[]): string | null {
-  // Breathing sessions don't count toward progress stats, so exclude them here
-  // too — otherwise this "last N sessions" count disagrees with the Sessions stat.
-  const focusSessions = sessions.filter(isFocusSession);
-  if (focusSessions.length === 0) return null;
-  const recent = [...focusSessions]
+  if (sessions.length === 0) return null;
+  const recent = [...sessions]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 10);
   const buckets = { mornings: 0, afternoons: 0, evenings: 0 };
@@ -230,7 +257,8 @@ interface AppState {
 
   // True once we've asked for the native store review popup. iOS/Android only
   // surface the prompt a few times a year regardless, so we gate it to a
-  // single lifetime attempt at the 3-day streak milestone.
+  // single lifetime attempt, fired at the first of: completing a focus
+  // session, or sealing a vault.
   hasRequestedReview: boolean;
 
   // Home
@@ -241,6 +269,12 @@ interface AppState {
   darkMode: boolean;
   themeKey: ThemeKey;
 
+  // Reflect feed — remembers the last slide the user was reading (by feed
+  // item key, since raw index shifts as custom affirmations are added/removed)
+  // so reopening the app resumes where they left off instead of at the top.
+  lastReflectFilter: string | null;
+  lastReflectKey: string | null;
+
   // Focus
   focusMinutes: FocusDuration;
   selectedSound: SoundId | null;
@@ -250,6 +284,15 @@ interface AppState {
   totalSessions: number;
   focusHours: number;
   bestStreak: number;
+  // Day-keys (`startOfDay` UTC-ms) the streak was kept — the app was opened OR
+  // a session was logged that day. Source of truth for the streak count and the
+  // activity calendar, decoupled from `sessions` so simply opening the app
+  // continues the streak without touching totalSessions/focusHours.
+  streakDays: number[];
+  // Ephemeral (not persisted): the streak count to celebrate in the pop-down
+  // banner, set on the first check-in of a new day and cleared once the banner
+  // has shown. null when there's nothing to show.
+  pendingStreakBanner: number | null;
 
   // Vault
   vaults: Vault[];
@@ -269,8 +312,8 @@ interface AppState {
   currentAffirmation: () => string;
   recentSessions: () => RecentSession[];
   focusInsight: () => string | null;
-  // Current consecutive-day streak, derived from `sessions` on the fly so it
-  // naturally resets to 0 when a day is missed without any session being logged.
+  // Current consecutive-day streak, derived from `streakDays` on the fly so it
+  // naturally resets to 0 when a full day is missed (no app open, no session).
   streak: () => number;
 
   // Actions
@@ -295,6 +338,11 @@ interface AppState {
   setThemeKey: (key: ThemeKey) => void;
   logSession: (minutes: FocusDuration) => void;
   logBreathingSession: (seconds: number) => void;
+  // Register that the app was opened today, keeping the streak alive without a
+  // session. No-op after the first call of the calendar day. Sets
+  // `pendingStreakBanner` on a genuinely new day so the banner drops in.
+  checkInToday: () => void;
+  clearStreakBanner: () => void;
   addVault: (vault: Omit<Vault, 'id'>) => void;
   markVaultOpened: (id: string) => void;
   deleteVault: (id: string) => void;
@@ -302,6 +350,7 @@ interface AppState {
   clearActiveSession: () => void;
   setPausedSession: (session: { remainingMs: number; minutes: FocusDuration; sound: SoundId | null }) => void;
   clearPausedSession: () => void;
+  setLastReflectPosition: (filter: string, key: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -320,6 +369,8 @@ export const useAppStore = create<AppState>()(
       affirmationIndex: 0,
       savedAffirmations: [],
       customAffirmations: [],
+      lastReflectFilter: null,
+      lastReflectKey: null,
       darkMode: false,
       themeKey: 'cream' as ThemeKey,
       focusMinutes: 25,
@@ -328,6 +379,8 @@ export const useAppStore = create<AppState>()(
       totalSessions: 0,
       focusHours: 0,
       bestStreak: 0,
+      streakDays: [],
+      pendingStreakBanner: null,
       vaults: [],
       activeSessionEndTime: null,
       activeSessionNotificationId: null,
@@ -355,7 +408,7 @@ export const useAppStore = create<AppState>()(
 
       focusInsight: () => buildInsight(get().sessions),
 
-      streak: () => computeStreak(get().sessions).currentStreak,
+      streak: () => computeStreakFromDays(new Set(get().streakDays)).currentStreak,
 
       setName: (name) => set({ userName: name }),
 
@@ -463,18 +516,12 @@ export const useAppStore = create<AppState>()(
             sound: state.selectedSound,
             date: new Date().toISOString(),
           };
-          const sessions = [session, ...state.sessions];
-          const { currentStreak, longestStreak } = computeStreak(sessions);
-          return {
-            sessions,
-            totalSessions: state.totalSessions + 1,
-            focusHours: Math.round((state.focusHours + minutes / 60) * 100) / 100,
-            bestStreak: Math.max(state.bestStreak, currentStreak, longestStreak),
-          };
+          return recordSession(state, session);
         }),
 
-      // Recorded for the Recent list only — doesn't affect totalSessions,
-      // focusHours, the day streak, or the activity calendar.
+      // Counts the same as a focus session everywhere — total sessions, focus
+      // hours, the day streak, and the activity calendar all treat breathing
+      // and focus sessions alike.
       logBreathingSession: (seconds) =>
         set((state) => {
           const session: SessionLog = {
@@ -484,8 +531,24 @@ export const useAppStore = create<AppState>()(
             date: new Date().toISOString(),
             type: 'breathing',
           };
-          return { sessions: [session, ...state.sessions] };
+          return recordSession(state, session);
         }),
+
+      checkInToday: () =>
+        set((state) => {
+          const today = startOfDay(new Date());
+          // Already counted today — no streak change, no banner re-trigger.
+          if (state.streakDays.includes(today)) return {};
+          const streakDays = [...state.streakDays, today];
+          const { currentStreak, longestStreak } = computeStreakFromDays(new Set(streakDays));
+          return {
+            streakDays,
+            bestStreak: Math.max(state.bestStreak, currentStreak, longestStreak),
+            pendingStreakBanner: currentStreak,
+          };
+        }),
+
+      clearStreakBanner: () => set({ pendingStreakBanner: null }),
 
       addVault: (vault) =>
         set((state) => ({
@@ -511,11 +574,14 @@ export const useAppStore = create<AppState>()(
       setPausedSession: (session) => set({ pausedSession: session }),
 
       clearPausedSession: () => set({ pausedSession: null }),
+
+      setLastReflectPosition: (filter, key) =>
+        set({ lastReflectFilter: filter, lastReflectKey: key }),
     }),
     {
       name: 'manifest-store',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 13,
+      version: 16,
       // Safety net for future store-shape changes. Bump `version` and handle
       // older `persistedState` shapes here so existing users' data survives.
       // v2: no theme-picker UI ships yet, so force the intended default palette
@@ -553,7 +619,21 @@ export const useAppStore = create<AppState>()(
       // text in place of whatever was frozen at original schedule time.
       // v13: adds `hasRequestedReview`, gating the native store-review prompt
       // to a single lifetime attempt. Existing installs start false so they're
-      // eligible the next time they hit the 3-day streak milestone.
+      // eligible the next time they complete a focus session or seal a vault.
+      // v14: adds `lastReflectFilter`/`lastReflectKey`, remembering the last
+      // slide read in the Reflect feed so reopening the app resumes there
+      // instead of at the top. Existing installs start with neither set, so
+      // they simply resume at the top once (same as today) then start tracking.
+      // v15: breathing sessions now count the same as focus sessions toward
+      // total sessions, focus hours, and the day streak (previously logged
+      // for the Recent list only). Recompute all three from the full session
+      // history — now unfiltered by type — so already-completed breathing
+      // sessions retroactively count instead of only future ones.
+      // v16: the streak (and the activity calendar) are now driven by a new
+      // `streakDays` set — the app being opened OR a session logged keeps the
+      // streak, decoupled from `sessions` so opening the app continues the
+      // streak without inflating totalSessions/focusHours. Seed `streakDays`
+      // from existing session dates so past streaks and calendar dots survive.
       migrate: (persistedState, version) => {
         const prev = (persistedState ?? {}) as Omit<Partial<AppState>, 'streak'> & {
           activityData?: unknown;
@@ -608,6 +688,19 @@ export const useAppStore = create<AppState>()(
         if (version < 13) {
           cleaned.hasRequestedReview = false;
         }
+        if (version < 15) {
+          const allSessions = cleaned.sessions ?? [];
+          cleaned.totalSessions = allSessions.length;
+          const totalMinutes = allSessions.reduce((sum, s) => sum + s.minutes, 0);
+          cleaned.focusHours = Math.round((totalMinutes / 60) * 100) / 100;
+          const { currentStreak, longestStreak } = computeStreak(allSessions);
+          cleaned.bestStreak = Math.max(cleaned.bestStreak ?? 0, currentStreak, longestStreak);
+        }
+        if (version < 16) {
+          const days = new Set<number>();
+          for (const s of cleaned.sessions ?? []) days.add(startOfDay(new Date(s.date)));
+          cleaned.streakDays = [...days];
+        }
         return cleaned as unknown as AppState;
       },
       partialize: (state) => ({
@@ -627,9 +720,12 @@ export const useAppStore = create<AppState>()(
         darkMode: state.darkMode,
         themeKey: state.themeKey,
         affirmationIndex: state.affirmationIndex,
+        lastReflectFilter: state.lastReflectFilter,
+        lastReflectKey: state.lastReflectKey,
         totalSessions: state.totalSessions,
         focusHours: state.focusHours,
         bestStreak: state.bestStreak,
+        streakDays: state.streakDays,
         vaults: state.vaults,
         activeSessionEndTime: state.activeSessionEndTime,
         activeSessionNotificationId: state.activeSessionNotificationId,

@@ -153,6 +153,11 @@ export default function SessionScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       logSession(minutes);
       trackEvent('focus_session_completed');
+      // Finishing any focus session is a genuinely positive moment and well
+      // clear of onboarding/paywall — ask for a store review here. Gated
+      // internally to a single lifetime attempt, so this is a no-op after
+      // the first time it (or the vault-sealed prompt) has fired.
+      maybeRequestReview();
       // logSession is synchronous, so the streak selector already reflects this
       // session. If it just landed on a milestone, punctuate the moment with a
       // stronger haptic shortly after the completion chime so it reads as its
@@ -161,11 +166,6 @@ export default function SessionScreen() {
       if (isStreakMilestone(streakNow)) {
         trackEvent('streak_milestone_hit', { milestone: streakNow });
         setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 450);
-        // The 3-day milestone is a genuinely happy moment and well clear of
-        // onboarding/paywall — ask for a store review here, once ever.
-        if (streakNow === 3) {
-          maybeRequestReview();
-        }
       }
       clearActiveSession();
       cancelSessionCompletion(notificationIdRef.current);

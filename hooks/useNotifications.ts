@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useAppStore } from '../store/useAppStore';
 import { ReminderTime } from '../constants/data';
-import { rescheduleViaStore } from '../lib/reminderScheduler';
+import { rescheduleViaStore, cancelAllReminderNotifications } from '../lib/reminderScheduler';
 
 const SESSION_CHANNEL_ID = 'focus-session';
 const VAULT_CHANNEL_ID = 'vault-unlocks';
@@ -80,12 +80,12 @@ export function useNotifications() {
     return { granted: false, canAskAgain: false };
   }, []);
 
-  // Cancel only our tracked daily reminders (not vault/session notifications).
+  // Cancel every daily reminder in the OS schedule — including any orphaned
+  // duplicates the store no longer tracks — while leaving vault/session
+  // notifications untouched. Matching by title (not just the tracked ids) means
+  // turning reminders off reliably silences them even if a past race left extras.
   const cancelAll = useCallback(async () => {
-    const ids = useAppStore.getState().notificationIds;
-    await Promise.all(
-      ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})),
-    );
+    await cancelAllReminderNotifications();
     useAppStore.getState().setNotificationIds([]);
     useAppStore.getState().setLastRescheduledAt(null);
   }, []);

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -26,6 +26,7 @@ import LottieView from 'lottie-react-native';
 
 import { useAppStore, type Vault, type Dob } from '../../store/useAppStore';
 import { trackEvent } from '../../lib/analytics';
+import { maybeRequestReview } from '../../lib/storeReview';
 import { ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -48,6 +49,28 @@ const VAULT_OPEN_BG_DARK = require('../../assets/bg_vaultopen_dark.webp');
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type VaultState = 'locked' | 'soon' | 'ready' | 'opened';
+
+type VaultSort = 'newest' | 'oldest' | 'soonest';
+
+const SORT_OPTIONS: { key: VaultSort; label: string }[] = [
+  { key: 'newest', label: 'Newest first' },
+  { key: 'oldest', label: 'Oldest first' },
+  { key: 'soonest', label: 'Opening soon' },
+];
+
+// `vaults` is already newest-first (addVault prepends), so "newest" is a no-op
+// pass-through; the other two re-derive an explicit order from real dates.
+function sortVaults(vaults: Vault[], sort: VaultSort): Vault[] {
+  if (sort === 'oldest') {
+    return [...vaults].reverse();
+  }
+  if (sort === 'soonest') {
+    return [...vaults].sort(
+      (a, b) => new Date(a.unlock).getTime() - new Date(b.unlock).getTime(),
+    );
+  }
+  return vaults;
+}
 
 type VaultView =
   | null
@@ -89,9 +112,19 @@ function getVaultState(v: Vault): VaultState {
   return 'locked';
 }
 
+// How many characters of the message are allowed to show as the card/preview
+// heading. A vault is meant to stay hidden until it unlocks, so we reveal only
+// a short teaser — never the full line.
+const TITLE_PREVIEW_CHARS = 10;
+
+// Short preview heading for a vault. Caps at the first TITLE_PREVIEW_CHARS
+// characters (with an ellipsis when trimmed). Idempotent, so it can be applied
+// both when sealing (to the raw message) and at display time (to an already
+// stored title, which covers vaults sealed before this cap existed).
 function deriveTitleFromMessage(msg: string): string {
-  const words = msg.trim().split(/\s+/);
-  return words.length > 5 ? words.slice(0, 5).join(' ') + '…' : words.join(' ');
+  const trimmed = msg.trim();
+  if (trimmed.length <= TITLE_PREVIEW_CHARS) return trimmed;
+  return trimmed.slice(0, TITLE_PREVIEW_CHARS).trimEnd() + '…';
 }
 
 // ─── Custom-date helpers (Dob is { day, month(1-12), year }) ──────────────────
@@ -460,9 +493,9 @@ function VaultCard({
           <StatePill state={state} theme={theme} />
         </View>
 
-        {/* Title */}
+        {/* Title — capped to a short teaser so the sealed message stays hidden */}
         <Text
-          numberOfLines={2}
+          numberOfLines={1}
           style={{
             fontFamily: 'DMSerifDisplay_400Regular',
             fontSize: 20,
@@ -470,7 +503,7 @@ function VaultCard({
             color: theme.text,
           }}
         >
-          {vault.title}
+          {deriveTitleFromMessage(vault.title)}
         </Text>
 
         {/* Dates */}
@@ -1300,7 +1333,7 @@ function LockedDetailModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <ThemedBackground lightSource={VAULT_BG_LIGHT} darkSource={VAULT_BG_DARK}>
         {/* Glow — centered behind the lock art. The lock's center sits at
             insets.top + 16 (top pad) + 40 (header) + 26 (gap) + 75 (half of the
             150-tall LockArt); offset the 280 circle up by half to sit behind it. */}
@@ -1352,6 +1385,7 @@ function LockedDetailModal({
           <LockArt size={150} open={false} pulse={false} theme={theme} />
 
           <Text
+            numberOfLines={1}
             style={{
               fontFamily: 'DMSerifDisplay_400Regular',
               fontSize: 24,
@@ -1360,7 +1394,7 @@ function LockedDetailModal({
               textAlign: 'center',
             }}
           >
-            {vault.title}
+            {deriveTitleFromMessage(vault.title)}
           </Text>
 
           {/* Hidden message card */}
@@ -1489,7 +1523,7 @@ function LockedDetailModal({
             </Text>
           </View>
         </ScrollView>
-      </View>
+      </ThemedBackground>
     </Modal>
   );
 }
@@ -1854,6 +1888,8 @@ export default function VaultScreen() {
   const sh = darkMode ? shadowDark.md : shadow.md;
 
   const [vaultView, setVaultView] = useState<VaultView>(null);
+  const [sort, setSort] = useState<VaultSort>('newest');
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
 
   // Auto-open first ready vault on mount
   useEffect(() => {
@@ -1887,6 +1923,14 @@ export default function VaultScreen() {
   }, []);
 
   const readyCount = vaults.filter((v) => getVaultState(v) === 'ready').length;
+  const sortedVaults = useMemo(() => sortVaults(vaults, sort), [vaults, sort]);
+  const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? 'Newest sealed';
+
+  const selectSort = (next: VaultSort) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSortMenuOpen(false);
+    setSort(next);
+  };
 
   const handleCardPress = (vault: Vault) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1923,6 +1967,11 @@ export default function VaultScreen() {
         notificationId,
       });
       trackEvent('vault_entry_created');
+      // Sealing a vault is a genuinely positive moment and well clear of
+      // onboarding/paywall — ask for a store review here. Gated internally to
+      // a single lifetime attempt, so this is a no-op after the first time it
+      // (or the focus-session-completed prompt) has fired.
+      maybeRequestReview();
     }
     setVaultView(null);
   };
@@ -2023,9 +2072,36 @@ export default function VaultScreen() {
               <Mascot state="rest" size={64} opacity={0.8} />
             </View>
 
+            {/* Sort control — only worth showing once there's something to reorder */}
+            {vaults.length > 1 && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSortMenuOpen(true);
+                }}
+                style={{
+                  alignSelf: 'flex-end',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 16,
+                  backgroundColor: theme.card,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                }}
+              >
+                <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 13, color: theme.text }}>
+                  {sortLabel}
+                </Text>
+                <Icon name="chevD" size={13} color={theme.text2} />
+              </Pressable>
+            )}
+
             {readyCount > 0 && <ReadyBanner count={readyCount} theme={theme} />}
 
-            {vaults.map((vault, i) => (
+            {sortedVaults.map((vault, i) => (
               <VaultCard
                 key={vault.id}
                 vault={vault}
@@ -2037,6 +2113,71 @@ export default function VaultScreen() {
             ))}
           </ScrollView>
         )}
+
+        {/* Sort options — a small action-sheet-style modal, same dismiss-on-backdrop
+            pattern as CustomDateModal above, so it needs no z-index juggling against
+            the scrolling list beneath it. */}
+        <Modal
+          visible={sortMenuOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSortMenuOpen(false)}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+            onPress={() => setSortMenuOpen(false)}
+          >
+            <View
+              style={{
+                position: 'absolute',
+                top: insets.top + 96,
+                right: 24,
+                minWidth: 190,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: theme.border,
+                backgroundColor: theme.card,
+                paddingVertical: 4,
+                shadowColor: '#3A3028',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.14,
+                shadowRadius: 18,
+                elevation: 10,
+              }}
+            >
+              {SORT_OPTIONS.map((opt, i) => {
+                const isActive = opt.key === sort;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => selectSort(opt.key)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      paddingHorizontal: 16,
+                      paddingVertical: 13,
+                      borderBottomWidth: i < SORT_OPTIONS.length - 1 ? 1 : 0,
+                      borderBottomColor: theme.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: isActive ? 'DMSans_500Medium' : 'DMSans_400Regular',
+                        fontSize: 14.5,
+                        color: isActive ? theme.gold : theme.text,
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                    {isActive && <Icon name="check" size={14} color={theme.gold} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* FAB — only when there are vaults */}
         {vaults.length > 0 && (

@@ -18,8 +18,8 @@ interface StreakBadgeProps {
 
 export default function StreakBadge({ value }: StreakBadgeProps) {
   const { theme, darkMode } = useTheme();
-  // Subscribe to sessions so the computed streak re-derives when a session is logged.
-  useAppStore((s) => s.sessions);
+  // Subscribe to streakDays so the computed streak re-derives on each check-in.
+  useAppStore((s) => s.streakDays);
   const streak = useAppStore((s) => s.streak)();
   const sh = darkMode ? shadowDark.sm : shadow.sm;
 

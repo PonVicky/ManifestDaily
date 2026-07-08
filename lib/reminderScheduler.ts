@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 import { GoalId, ReminderTime, affirmationPool } from '../constants/data';
-import { useAppStore } from '../store/useAppStore';
+import { useAppStore, computeStreakFromDays } from '../store/useAppStore';
 
 /**
  * Daily-affirmation reminder scheduling, shared by the foreground (Zustand
@@ -24,12 +24,28 @@ import { useAppStore } from '../store/useAppStore';
 
 // 24h local time each reminder fires.
 export const REMINDER_TIMES: Record<ReminderTime, { hour: number; minute: number }> = {
-  morning: { hour: 8, minute: 0 }, // 8:00 AM
+  morning: { hour: 11, minute: 11 }, // 11:11 AM
   afternoon: { hour: 14, minute: 0 }, // 2:00 PM
   evening: { hour: 20, minute: 0 }, // 8:00 PM
 };
 
 export const ANDROID_CHANNEL_ID = 'daily-reminders';
+
+// Title shared by every daily-reminder notification. It doubles as the marker we
+// use to find *all* of our reminders in the OS schedule (tracked or orphaned)
+// so a reschedule can sweep duplicates rather than trusting the stored id list.
+// It must stay distinct from the session/vault notification titles.
+export const REMINDER_TITLE = 'Your daily affirmation ✦';
+
+// Separate category for the "don't lose your streak" nudge. Its own channel and
+// its own unique title marker (kept distinct from REMINDER_TITLE / session /
+// vault titles) so it can be found and cancelled without disturbing the others.
+export const STREAK_CHANNEL_ID = 'streak-reminders';
+export const STREAK_TITLE = "Don't break your streak 🔥";
+
+// Local hour the streak nudge fires — 10pm, ~2h before the midnight day
+// boundary, so the user still has time to open the app and keep the streak.
+const STREAK_REMINDER_HOUR = 22;
 
 // Refresh the affirmation text at most once per ~day. Used as a throttle by
 // both the foreground trigger and the background task so that however often the
@@ -83,7 +99,7 @@ async function scheduleReminderNotifications(
     const { hour, minute } = REMINDER_TIMES[times[i]];
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Your daily affirmation ✦',
+        title: REMINDER_TITLE,
         body: bodies[i],
       },
       trigger: {
@@ -98,23 +114,60 @@ async function scheduleReminderNotifications(
   return ids;
 }
 
-async function cancelReminderIds(ids: string[]) {
+// Identifiers of EVERY daily-reminder currently scheduled in the OS — matched by
+// title, so this catches orphans (notifications the store no longer tracks,
+// left behind by an earlier concurrent reschedule) as well as tracked ones.
+// Deliberately does not match the focus-session or vault-unlock notifications,
+// which carry different titles.
+async function scheduledReminderIds(): Promise<string[]> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduled.filter((n) => n.content.title === REMINDER_TITLE).map((n) => n.identifier);
+}
+
+// How many daily reminders the OS actually has scheduled right now. Used to
+// detect duplicates (more than expected) so we can self-heal.
+export async function countScheduledReminders(): Promise<number> {
+  return (await scheduledReminderIds()).length;
+}
+
+// Cancel every daily reminder in the OS schedule (tracked or orphaned). Leaves
+// session/vault notifications untouched. Exported so turning reminders off also
+// sweeps up any duplicates rather than only the ids the store happens to track.
+export async function cancelAllReminderNotifications(): Promise<void> {
+  const ids = await scheduledReminderIds();
   await Promise.all(
     ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})),
   );
 }
 
-// Core reschedule: cancel the old reminder ids, then schedule a fresh daily
-// reminder for each time with a different random affirmation (or the supplied
-// `bodies`). Returns the new ids. Persists nothing — callers decide where the
-// ids/timestamp go (live store vs raw AsyncStorage blob).
+// Serializes reschedules within this JS context. Without it, two overlapping
+// reschedules (cold-launch + AppState 'active', say) can each schedule a set and
+// the last writer orphans the other's notifications — the root cause of the
+// duplicate reminders. Chaining guarantees each read→cancel→schedule→persist
+// cycle runs to completion before the next begins.
+let rescheduleChain: Promise<unknown> = Promise.resolve();
+function withRescheduleLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = rescheduleChain.then(fn, fn);
+  // Keep the chain alive whether fn resolves or rejects, without leaking the
+  // rejection to an unhandled-rejection warning.
+  rescheduleChain = run.then(
+    () => {},
+    () => {},
+  );
+  return run;
+}
+
+// Core reschedule: sweep away EVERY existing daily reminder (so duplicates can
+// never accumulate), then schedule a fresh daily reminder for each time with a
+// different random affirmation (or the supplied `bodies`). Returns the new ids.
+// Persists nothing — callers decide where the ids/timestamp go (live store vs
+// raw AsyncStorage blob).
 async function rebuildReminders(
   times: ReminderTime[],
   goals: GoalId[],
-  oldIds: string[],
   bodies?: string[],
 ): Promise<string[]> {
-  await cancelReminderIds(oldIds);
+  await cancelAllReminderNotifications();
   if (times.length === 0) return [];
   const texts =
     bodies && bodies.length === times.length ? bodies : pickAffirmations(goals, times.length);
@@ -137,17 +190,14 @@ export async function rescheduleViaStore(
   times?: ReminderTime[],
   bodies?: string[],
 ): Promise<string[]> {
-  const state = useAppStore.getState();
-  const reminderTimes = times ?? state.reminderTimes;
-  const ids = await rebuildReminders(
-    reminderTimes,
-    state.selectedGoals,
-    state.notificationIds,
-    bodies,
-  );
-  state.setNotificationIds(ids);
-  state.setLastRescheduledAt(Date.now());
-  return ids;
+  return withRescheduleLock(async () => {
+    const state = useAppStore.getState();
+    const reminderTimes = times ?? state.reminderTimes;
+    const ids = await rebuildReminders(reminderTimes, state.selectedGoals, bodies);
+    useAppStore.getState().setNotificationIds(ids);
+    useAppStore.getState().setLastRescheduledAt(Date.now());
+    return ids;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +258,9 @@ export async function rescheduleFromStorage(): Promise<boolean> {
     return false;
   }
 
-  const ids = await rebuildReminders(state.reminderTimes, state.selectedGoals, state.notificationIds);
+  const ids = await withRescheduleLock(() =>
+    rebuildReminders(state.reminderTimes, state.selectedGoals),
+  );
   await writePersisted(raw, ids, Date.now());
   return true;
 }
@@ -236,6 +288,21 @@ export async function maybeRescheduleOnForeground(): Promise<void> {
 
   const { notificationIds, lastRescheduledAt, reminderTimes } = useAppStore.getState();
   if (notificationIds.length === 0) return; // reminders off
+
+  // Self-heal: if the OS has a different number of reminders scheduled than we
+  // expect — duplicates left by an earlier race, or some dropped by the OS —
+  // rebuild now regardless of the daily throttle. rescheduleViaStore sweeps all
+  // reminders first, so this collapses any duplicates back to exactly one per
+  // time. Guarded on a non-empty reminderTimes so we never wipe reminders that
+  // are on while the times list is momentarily empty.
+  if (reminderTimes.length > 0) {
+    const scheduledCount = await countScheduledReminders();
+    if (scheduledCount !== reminderTimes.length) {
+      await rescheduleViaStore(reminderTimes);
+      return;
+    }
+  }
+
   if (lastRescheduledAt && Date.now() - lastRescheduledAt < RESCHEDULE_INTERVAL_MS) return;
   await rescheduleViaStore(reminderTimes);
 }
@@ -271,4 +338,88 @@ export async function registerDailyReminderTask(): Promise<void> {
   } catch {
     // Best-effort: never block app startup on background scheduling.
   }
+}
+
+// ---------------------------------------------------------------------------
+// Streak-saver notification — a single one-off nudge scheduled for tomorrow
+// night, rescheduled on every app open. Because opening the app pushes it to
+// the next night, it only ever actually fires on a day the user never opened
+// the app — i.e. right before they'd lose their streak. Entirely best-effort:
+// no permission prompt and no settings toggle, so it silently no-ops if the
+// user has never granted notification permission.
+// ---------------------------------------------------------------------------
+
+async function ensureStreakChannel() {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync(STREAK_CHANNEL_ID, {
+      name: 'Streak reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  }
+}
+
+// Ids of every streak nudge currently scheduled in the OS, matched by title so
+// we never touch the affirmation/session/vault notifications.
+async function scheduledStreakIds(): Promise<string[]> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduled.filter((n) => n.content.title === STREAK_TITLE).map((n) => n.identifier);
+}
+
+export async function cancelStreakReminders(): Promise<void> {
+  const ids = await scheduledStreakIds();
+  await Promise.all(
+    ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})),
+  );
+}
+
+function streakReminderBody(streak: number): string {
+  if (streak <= 1) {
+    return 'You haven’t opened Manifest today. Take one mindful minute before midnight to keep your streak alive.';
+  }
+  return `You haven’t opened Manifest today. Take one mindful minute before midnight to keep your ${streak}-day streak alive.`;
+}
+
+/**
+ * (Re)schedule the streak-saver nudge for tomorrow at 10pm. Called on every app
+ * open: today is already safe (the user just opened the app), so the only day
+ * at risk is tomorrow — and if they open tomorrow before 10pm this simply gets
+ * cancelled and re-pointed to the following night. Best-effort; swallows every
+ * error (including "no notification permission").
+ */
+export async function scheduleStreakReminder(): Promise<void> {
+  // Serialized on the same lock as the reminder reschedules: this runs on both
+  // cold launch and every AppState 'active', and two overlapping cancel→schedule
+  // passes could otherwise interleave and leave a duplicate nudge behind.
+  return withRescheduleLock(async () => {
+    try {
+      const { streakDays } = useAppStore.getState();
+      const { currentStreak } = computeStreakFromDays(new Set(streakDays));
+
+      // Always clear the pending nudge first so we never stack duplicates.
+      await cancelStreakReminders();
+
+      // No streak yet — nothing to protect, so leave it cancelled.
+      if (currentStreak <= 0) return;
+
+      await ensureStreakChannel();
+
+      const fireAt = new Date();
+      fireAt.setDate(fireAt.getDate() + 1);
+      fireAt.setHours(STREAK_REMINDER_HOUR, 0, 0, 0);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: STREAK_TITLE,
+          body: streakReminderBody(currentStreak),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: fireAt,
+          channelId: STREAK_CHANNEL_ID,
+        },
+      });
+    } catch {
+      // Best-effort: never surface a scheduling/permission failure into the UI.
+    }
+  });
 }
