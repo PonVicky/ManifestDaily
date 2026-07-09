@@ -15,7 +15,7 @@ import Icon, { IconName } from './Icon';
 import Mascot from './Mascot';
 
 // Bump this alongside app.json's `version` when shipping a new release note.
-export const WHATS_NEW_VERSION = '1.1.2';
+export const WHATS_NEW_VERSION = '1.1.3';
 
 // Only changes a user can actually see or feel — internal refactors and fixes
 // with no visible surface don't belong here.
