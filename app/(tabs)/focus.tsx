@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { spacing, radius, fontSize, shadow, shadowDark } from '../../constants/tokens';
 import { FOCUS_DURATIONS, SOUNDS, FocusDuration, SoundId } from '../../constants/data';
+import { CHALLENGE_SOURCE, CHALLENGE_TOTAL_DAYS } from '../../constants/deepLinks';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import Mascot from '../../components/ui/Mascot';
@@ -31,7 +32,10 @@ function formatCountdown(totalSeconds: number): string {
 
 export default function FocusScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ source?: string }>();
   const { theme, darkMode } = useTheme();
+  const isChallenge = params.source === CHALLENGE_SOURCE;
+  const streak = useAppStore((s) => s.streak)();
   const focusMinutes = useAppStore((s) => s.focusMinutes);
   const selectedSound = useAppStore((s) => s.selectedSound);
   const setFocusMinutes = useAppStore((s) => s.setFocusMinutes);
@@ -107,6 +111,15 @@ export default function FocusScreen() {
               opacity={0.85}
             />
           </View>
+
+          {isChallenge && (
+            <View style={[styles.challengePill, { backgroundColor: theme.sel, borderColor: theme.gold }]}>
+              <Icon name="flame" size={16} color={theme.gold} fill={theme.gold} strokeWidth={1.6} />
+              <Text style={[styles.challengeText, { color: theme.text, fontFamily: 'DMSans_500Medium' }]}>
+                Day {streak} of {CHALLENGE_TOTAL_DAYS} · Manifestation Challenge
+              </Text>
+            </View>
+          )}
 
           <View style={styles.titleArea}>
             <Text style={[styles.title, { color: theme.text, fontFamily: 'DMSerifDisplay_400Regular' }]}>
@@ -445,6 +458,19 @@ const styles = StyleSheet.create({
     top: 20,
     right: 0,
     zIndex: 1,
+  },
+  challengePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius['5xl'],
+    borderWidth: 1,
+  },
+  challengeText: {
+    fontSize: fontSize.sm,
   },
   titleArea: { gap: 6 },
   title: {
