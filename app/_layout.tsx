@@ -49,7 +49,7 @@ const FORCE_ONBOARDING = false;
 // or sandbox purchase (e.g. when testing the tabs in Expo Go, where RevenueCat
 // is unavailable and `isPremium` is always false). Gated behind `__DEV__` so it
 // is always `false` in a production build and can never ship a paywall bypass.
-const DEV_BYPASS_PAYWALL = __DEV__ && true;
+const DEV_BYPASS_PAYWALL = __DEV__ && false;
 
 function NavigationGuard({ hydrated }: { hydrated: boolean }) {
   const hasOnboarded = useAppStore((s) => s.hasOnboarded) && !FORCE_ONBOARDING;
