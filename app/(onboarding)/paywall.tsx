@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Alert, ActivityIndicator, ImageBackground, Linking, Platform, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
@@ -33,6 +33,10 @@ const PACKAGE_TYPE_MAP: Record<string, string> = {
 
 export default function PaywallScreen() {
   const router = useRouter();
+  // Set by presentPaywall/PaywallRedirect (lib/featureAccess.ts) when a free
+  // Android user tapped a gated feature. Never set on iOS.
+  const { context } = useLocalSearchParams<{ context?: string }>();
+  const isFeatureGate = context === 'feature';
   const { theme } = useTheme();
   const name = useAppStore((s) => s.userName);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
@@ -72,13 +76,26 @@ export default function PaywallScreen() {
       useAppStore.getState().completeOnboarding();
     }
 
-    // Trigger inference: if onboarding was already complete this is a returning
-    // non-premium user being hard-gated at launch; otherwise it's the paywall
+    // Trigger inference: an Android feature-gate visit carries the `context`
+    // param; otherwise, if onboarding was already complete this is a returning
+    // non-premium user being hard-gated at launch (iOS), else it's the paywall
     // step inside the onboarding flow. (Event values kept for analytics continuity.)
     trackEvent('paywall_viewed', {
-      trigger: wasOnboarded ? 'soft' : 'post_onboarding',
+      trigger: isFeatureGate ? 'feature_gate' : wasOnboarded ? 'soft' : 'post_onboarding',
     });
   }, []);
+
+  // Android soft paywall: this screen must always be leavable. A feature-gate
+  // visit was pushed, so pop back to where the user was; a post-onboarding or
+  // deep-link visit has nothing sensible behind it, so land on the tabs. On
+  // iOS no close button is rendered and the hard paywall stays inescapable.
+  const handleClose = () => {
+    if (isFeatureGate && router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/');
+    }
+  };
 
   // Catch entitlements that activate asynchronously while the user sits on the
   // paywall — e.g. a UPI Autopay mandate or Ask-to-Buy approval that confirms
@@ -212,7 +229,8 @@ export default function PaywallScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <ProgressDots step={12} total={TOTAL_STEPS} style={{ marginBottom: 0 }} />
+        {/* Feature-gate visits arrive mid-app, not mid-onboarding — no step dots. */}
+        {!isFeatureGate && <ProgressDots step={12} total={TOTAL_STEPS} style={{ marginBottom: 0 }} />}
 
         {/* Mascot */}
         <View style={styles.mascotRow}>
@@ -380,12 +398,40 @@ export default function PaywallScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Android-only escape hatch (freemium soft paywall). Rendered after the
+          ScrollView so it always draws and hit-tests above it; iOS renders no
+          close affordance and stays a hard paywall. */}
+      {Platform.OS === 'android' && (
+        <TouchableOpacity
+          onPress={handleClose}
+          style={[
+            styles.closeBtn,
+            { top: insets.top + 12, backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+          activeOpacity={0.75}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Icon name="close" size={16} color={theme.text2} strokeWidth={2} />
+        </TouchableOpacity>
+      )}
     </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  closeBtn: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topGradient: {
     position: 'absolute',
     top: 0,

@@ -16,7 +16,7 @@ module.exports = ({ config }) => ({
       //   ios:     'appl_xxxxxxxxxxxxxxxxxxxxxxxxxxxx'
       //   android: 'goog_xxxxxxxxxxxxxxxxxxxxxxxxxxxx'
       ios: 'appl_PWnvXPUzhlLOeZmmIVqvXLLVNBB',
-      android: 'test_DFaGPFodDJpugLMFXqZHlrPgudJ',
+      android: 'goog_StczLPVxnFIeNdtcFrAbfXexMvg',
     },
   },
 });

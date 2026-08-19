@@ -17,6 +17,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../hooks/useTheme';
 import { spacing, radius, fontSize } from '../constants/tokens';
 import { GOALS, GoalId } from '../constants/data';
+import { canCreateCustomAffirmation, presentPaywall } from '../lib/featureAccess';
 import Button from '../components/shared/Button';
 import Icon, { IconName } from '../components/ui/Icon';
 
@@ -30,6 +31,8 @@ export default function NewAffirmationScreen() {
   const { theme, darkMode } = useTheme();
   const addCustomAffirmation = useAppStore((s) => s.addCustomAffirmation);
   const updateCustomAffirmation = useAppStore((s) => s.updateCustomAffirmation);
+  const customAffirmations = useAppStore((s) => s.customAffirmations);
+  const isPremium = useAppStore((s) => s.isPremium);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
 
   // When an `id` is passed we're editing an existing custom affirmation.
@@ -49,6 +52,13 @@ export default function NewAffirmationScreen() {
 
   const handleSave = () => {
     if (!canSave) return;
+    // Backstop for the Android free-tier cap (the feed's + button is the main
+    // gate; this covers the composer being reached any other way). Edits to
+    // existing affirmations are always allowed.
+    if (!isEditing && !canCreateCustomAffirmation(customAffirmations.length, isPremium)) {
+      presentPaywall(router, 'customAffirmations');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isEditing) {
       updateCustomAffirmation(editingId, trimmed, category);
@@ -81,7 +91,7 @@ export default function NewAffirmationScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={insets.top + 8}
       >
         <ScrollView

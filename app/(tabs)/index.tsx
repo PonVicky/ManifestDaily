@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
+import { isGated, presentPaywall } from '../../lib/featureAccess';
 import { spacing, radius, shadow, shadowDark } from '../../constants/tokens';
 import { GOALS } from '../../constants/data';
 import AffirmationCard from '../../components/ui/AffirmationCard';
@@ -37,6 +38,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { theme, darkMode } = useTheme();
   const selectedGoals = useAppStore((s) => s.selectedGoals);
+  const isPremium = useAppStore((s) => s.isPremium);
   const focusMinutes = useAppStore((s) => s.focusMinutes);
   const insets = useSafeAreaInsets();
   const sh = darkMode ? shadowDark.md : shadow.md;
@@ -159,7 +161,13 @@ export default function HomeScreen() {
                   title="Breathing"
                   sub="2 min reset"
                   // emoji="🌬️"
-                  onPress={() => router.push('/breathing')}
+                  onPress={() => {
+                    if (isGated('breathing', isPremium)) {
+                      presentPaywall(router, 'breathing');
+                      return;
+                    }
+                    router.push('/breathing');
+                  }}
                   theme={theme}
                   shadowStyle={shSm}
                 />

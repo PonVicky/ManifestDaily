@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { spacing, radius, fontSize, shadow, shadowDark } from '../../constants/tokens';
 import { FOCUS_DURATIONS, SOUNDS, FocusDuration, SoundId } from '../../constants/data';
+import { isGated, presentPaywall } from '../../lib/featureAccess';
 import { CHALLENGE_SOURCE, CHALLENGE_TOTAL_DAYS } from '../../constants/deepLinks';
 import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
@@ -36,6 +37,7 @@ export default function FocusScreen() {
   const { theme, darkMode } = useTheme();
   const isChallenge = params.source === CHALLENGE_SOURCE;
   const streak = useAppStore((s) => s.streak)();
+  const isPremium = useAppStore((s) => s.isPremium);
   const focusMinutes = useAppStore((s) => s.focusMinutes);
   const selectedSound = useAppStore((s) => s.selectedSound);
   const setFocusMinutes = useAppStore((s) => s.setFocusMinutes);
@@ -61,10 +63,15 @@ export default function FocusScreen() {
   const [customHours, setCustomHours] = useState(Math.floor(focusMinutes / 60));
   const [customMinutes, setCustomMinutes] = useState(focusMinutes % 60);
 
+  // Ambient audio is premium. The picker below is gated too, but a sound can
+  // already be persisted/paused-in (e.g. a lapsed Android subscription), so
+  // strip it when starting the session rather than playing it for free.
+  const audioGated = isGated('ambientAudio', isPremium);
+
   const handleBegin = () => {
     router.push({
       pathname: '/session',
-      params: { minutes: focusMinutes, sound: selectedSound ?? '' },
+      params: { minutes: focusMinutes, sound: audioGated ? '' : selectedSound ?? '' },
     });
   };
 
@@ -74,13 +81,17 @@ export default function FocusScreen() {
       pathname: '/session',
       params: {
         minutes: pausedSession.minutes,
-        sound: pausedSession.sound ?? '',
+        sound: audioGated ? '' : pausedSession.sound ?? '',
         remaining: pausedSession.remainingMs,
       },
     });
   };
 
   const openCustomPicker = () => {
+    if (isGated('customDurations', isPremium)) {
+      presentPaywall(router, 'customDurations');
+      return;
+    }
     setCustomHours(Math.floor(focusMinutes / 60));
     setCustomMinutes(focusMinutes % 60);
     setCustomOpen(true);
@@ -277,7 +288,13 @@ export default function FocusScreen() {
                           borderColor: isSelected ? theme.gold : theme.border,
                         },
                       ]}
-                      onPress={() => setSound(s.id as SoundId)}
+                      onPress={() => {
+                        if (audioGated) {
+                          presentPaywall(router, 'ambientAudio');
+                          return;
+                        }
+                        setSound(s.id as SoundId);
+                      }}
                     >
                       <Icon
                         name={s.icon as IconName}

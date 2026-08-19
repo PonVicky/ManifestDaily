@@ -10,6 +10,7 @@ import { useAppStore } from '../store/useAppStore';
 import Icon, { IconName } from '../components/ui/Icon';
 import WhatsNewSheet, { WHATS_NEW_VERSION } from '../components/ui/WhatsNewSheet';
 import { GOALS, GoalId, REMINDER_OPTIONS, ReminderTime } from '../constants/data';
+import { isGated, presentPaywall } from '../lib/featureAccess';
 import { radius, spacing, fontSize, shadow, shadowDark } from '../constants/tokens';
 
 // TODO: replace with the real App Store numeric ID once the app is live
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
   const userName = useAppStore((s) => s.userName);
   const setName = useAppStore((s) => s.setName);
   const reminderTimes = useAppStore((s) => s.reminderTimes);
+  const isPremium = useAppStore((s) => s.isPremium);
   const setReminders = useAppStore((s) => s.setReminders);
   const notificationsOn = useAppStore((s) => s.notificationIds.length > 0);
   const selectedGoals = useAppStore((s) => s.selectedGoals);
@@ -115,6 +117,13 @@ export default function SettingsScreen() {
   const handleToggleGoal = (goalId: GoalId) => {
     const isSelected = selectedGoals.includes(goalId);
     if (isSelected && selectedGoals.length === 1) return;
+    // Android free tier is a single category: adding a goal beyond the first
+    // is the premium pitch (removing/swapping down to one stays free).
+    if (!isSelected && selectedGoals.length >= 1 && isGated('allCategories', isPremium)) {
+      setGoalPickerOpen(false);
+      presentPaywall(router, 'allCategories');
+      return;
+    }
     const next = isSelected
       ? selectedGoals.filter((id) => id !== goalId)
       : [...selectedGoals, goalId];
@@ -142,6 +151,13 @@ export default function SettingsScreen() {
   };
 
   const togglePickerTime = (id: ReminderTime) => {
+    // Android free tier gets a single daily reminder slot; turning on a second
+    // one is the premium pitch.
+    if (!pickerTimes.includes(id) && pickerTimes.length >= 1 && isGated('multiSlotReminders', isPremium)) {
+      setTimePickerOpen(false);
+      presentPaywall(router, 'multiSlotReminders');
+      return;
+    }
     setPickerTimes((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
     );
@@ -176,6 +192,10 @@ export default function SettingsScreen() {
 
   const exportData = async () => {
     if (exporting) return;
+    if (isGated('dataExport', isPremium)) {
+      presentPaywall(router, 'dataExport');
+      return;
+    }
     setExporting(true);
     try {
       const sharingAvailable = await Sharing.isAvailableAsync();
@@ -648,7 +668,7 @@ export default function SettingsScreen() {
       >
         <KeyboardAvoidingView
           style={[styles.sheetPage, { backgroundColor: theme.bg }]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
           <View style={[styles.sheetPageContent, { paddingBottom: insets.bottom + spacing.lg }]}>

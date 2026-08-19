@@ -26,6 +26,8 @@ import LottieView from 'lottie-react-native';
 
 import { useAppStore, type Vault, type Dob } from '../../store/useAppStore';
 import { trackEvent } from '../../lib/analytics';
+import { isGated } from '../../lib/featureAccess';
+import PaywallRedirect from '../../components/shared/PaywallRedirect';
 import { maybeRequestReview } from '../../lib/storeReview';
 import { ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
@@ -1877,7 +1879,17 @@ function UnlockModal({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+// Split into a gate wrapper + inner screen so a free Android user bounces to
+// the paywall without the inner component's hooks ever mounting. The custom
+// TabBar navigates directly (no tabPress event), so the gate lives here rather
+// than as a tab listener; this also covers the Home-screen shortcut.
 export default function VaultScreen() {
+  const isPremium = useAppStore((s) => s.isPremium);
+  if (isGated('vault', isPremium)) return <PaywallRedirect feature="vault" />;
+  return <VaultScreenInner />;
+}
+
+function VaultScreenInner() {
   const { theme, darkMode } = useTheme();
   const vaults = useAppStore((s) => s.vaults);
   const addVault = useAppStore((s) => s.addVault);

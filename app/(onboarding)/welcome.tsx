@@ -130,11 +130,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(225, 190, 157, 0.22)',
     borderWidth: 1,
     borderColor: 'rgba(188, 143, 108, 0.16)',
+    // iOS-only shadow (shadowColor/Offset/Opacity/Radius are ignored on
+    // Android; `elevation` is ignored on iOS). Deliberately no `elevation`
+    // here: Android renders elevation + a translucent/rgba backgroundColor
+    // on a rounded View as a faceted octagon instead of a circle — a known
+    // Android shadow-rendering bug, not something fixable via styling. Since
+    // this circle's fill is intentionally translucent (the glass backdrop
+    // look), dropping the Android shadow avoids the artifact; iOS keeps its
+    // shadow untouched via the props below.
     shadowColor: '#4A2B1D',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.05,
     shadowRadius: 24,
-    elevation: 8,
   },
   textArea: {
     alignItems: 'center',

@@ -57,7 +57,13 @@ export default function Button({
     <AnimatedTouchable
       style={[
         styles.base,
-        isPrimary && { backgroundColor: theme.gold, shadowColor: theme.gold },
+        // elevation lives here (not in styles.base) because it's Android-only
+        // and only renders correctly over an opaque background — on ghost/text
+        // buttons (transparent background) Android's elevation shadow renders
+        // as a broken/faceted outline instead of a clean border. iOS is
+        // unaffected either way: it ignores `elevation` and reads the
+        // shadow*/ props in styles.base regardless of variant.
+        isPrimary && { backgroundColor: theme.gold, shadowColor: theme.gold, elevation: 4 },
         isGhost && { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.border },
         isText && { backgroundColor: 'transparent', paddingHorizontal: 0 },
         disabled && { opacity: 0.45 },
@@ -114,7 +120,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.22,
     shadowRadius: 16,
-    elevation: 4,
   },
   label: {
     fontSize: fontSize.lg,

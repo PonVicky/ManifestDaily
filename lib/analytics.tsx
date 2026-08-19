@@ -16,6 +16,7 @@ export type AnalyticsEvent =
   | 'onboarding_step_completed'
   | 'onboarding_completed'
   | 'paywall_viewed'
+  | 'feature_gate_hit'
   | 'purchase_started'
   | 'purchase_completed'
   | 'purchase_pending'

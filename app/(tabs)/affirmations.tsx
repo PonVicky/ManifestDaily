@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { affirmationPool, goalIdForAffirmation, GoalId } from '../../constants/data';
+import { canCreateCustomAffirmation, isGated, presentPaywall } from '../../lib/featureAccess';
 import AffSlide from '../../components/ui/AffSlide';
 import Icon from '../../components/ui/Icon';
 
@@ -40,6 +41,7 @@ export default function AffirmationsScreen() {
   const { theme, darkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const selectedGoals = useAppStore((s) => s.selectedGoals);
+  const isPremium = useAppStore((s) => s.isPremium);
   const savedAffirmations = useAppStore((s) => s.savedAffirmations);
   const customAffirmations = useAppStore((s) => s.customAffirmations);
   const toggleSaveAffirmation = useAppStore((s) => s.toggleSaveAffirmation);
@@ -68,15 +70,21 @@ export default function AffirmationsScreen() {
   const slideHRef = useRef(screenHeight);
 
   // Built-in affirmations for the user's goals, tagged with their category.
+  // Android free tier only gets the first chosen goal's category; the rest of
+  // the library is premium. iOS always sees every selected goal.
+  const accessibleGoals = isGated('allCategories', isPremium)
+    ? selectedGoals.slice(0, 1)
+    : selectedGoals;
   const builtinItems = useMemo<FeedItem[]>(
     () =>
-      affirmationPool(selectedGoals).map((text) => ({
+      affirmationPool(accessibleGoals).map((text) => ({
         key: `b-${text}`,
         text,
         goalId: goalIdForAffirmation(text) ?? null,
         isCustom: false,
       })),
-    [selectedGoals],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedGoals, isPremium],
   );
 
   // User-authored affirmations (newest first, as stored).
@@ -315,6 +323,12 @@ export default function AffirmationsScreen() {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              // Android free tier caps custom affirmations; the next one is
+              // the premium pitch. iOS users here are always premium.
+              if (!canCreateCustomAffirmation(customAffirmations.length, isPremium)) {
+                presentPaywall(router, 'customAffirmations');
+                return;
+              }
               router.push('/new-affirmation');
             }}
             style={[styles.newBtn, { backgroundColor: theme.gold }]}

@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildMonthActivity, useAppStore } from '../../store/useAppStore';
+import { isGated } from '../../lib/featureAccess';
+import PaywallRedirect from '../../components/shared/PaywallRedirect';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { spacing, radius, fontSize, shadow, shadowDark } from '../../constants/tokens';
@@ -63,7 +65,16 @@ function StatCell({
   );
 }
 
+// Gate wrapper + inner screen: a free Android user bounces to the paywall
+// before the stats/calendar mount. Streak data still accrues globally (check-in
+// lives in the root layout), so everything is intact if they upgrade.
 export default function ProgressScreen() {
+  const isPremium = useAppStore((s) => s.isPremium);
+  if (isGated('progress', isPremium)) return <PaywallRedirect feature="progress" />;
+  return <ProgressScreenInner />;
+}
+
+function ProgressScreenInner() {
   const { theme, darkMode } = useTheme();
   const bestStreak = useAppStore((s) => s.bestStreak);
   const totalSessions = useAppStore((s) => s.totalSessions);

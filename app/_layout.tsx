@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, AppState, View } from 'react-native';
+import { Alert, AppState, Platform, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -57,11 +57,15 @@ function NavigationGuard({ hydrated }: { hydrated: boolean }) {
   const segments = useSegments();
   const router = useRouter();
 
-  // Hard paywall: once onboarding is complete, a non-premium user (no active
-  // entitlement — including an active free trial, which RevenueCat reports as
-  // premium) is sent to the paywall on every launch with no way to bypass it.
-  // DEV_BYPASS_PAYWALL lets developers through; it is forced false in production.
-  const needsPaywall = hasOnboarded && !isPremium && !DEV_BYPASS_PAYWALL;
+  // iOS hard paywall: once onboarding is complete, a non-premium user (no
+  // active entitlement — including an active free trial, which RevenueCat
+  // reports as premium) is sent to the paywall on every launch with no way to
+  // bypass it. DEV_BYPASS_PAYWALL lets developers through; it is forced false
+  // in production. Android is freemium instead: users land in the app with the
+  // free tier and only meet the paywall when they tap a gated feature (see
+  // lib/featureAccess.ts), so the launch gate never fires there.
+  const needsPaywall =
+    Platform.OS === 'ios' && hasOnboarded && !isPremium && !DEV_BYPASS_PAYWALL;
 
   useEffect(() => {
     if (!hydrated) return;

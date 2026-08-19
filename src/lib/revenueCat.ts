@@ -73,6 +73,14 @@ export function initRevenueCat(): boolean {
     return false;
   }
 
+  // Apple Search Ads attribution. iOS-only (no-op / unsupported on Android).
+  // Must run AFTER configure(). Fire-and-forget: never block or fail init on it.
+  if (Platform.OS === 'ios') {
+    Purchases.enableAdServicesAttributionTokenCollection().catch((error) => {
+      if (__DEV__) console.warn('[RevenueCat] AdServices token collection failed:', error);
+    });
+  }
+
   if (__DEV__) {
     console.log(`[RevenueCat] Configured for ${Platform.OS}`);
   }
