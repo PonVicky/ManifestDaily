@@ -133,7 +133,12 @@ export default function RootLayout() {
   useEffect(() => {
     if (!hydrated) return;
     initRevenueCat();
+    // `null` means the entitlement status could not be determined (offline with
+    // no cached customer info, SDK unavailable). That is *unknown*, not "not
+    // premium" — writing it through would persist false and lock a paying user
+    // out, so we keep whatever we last knew and re-sync later.
     checkPremiumStatus().then((isPremium) => {
+      if (isPremium === null) return;
       useAppStore.getState().setPremium(isPremium);
     });
   }, [hydrated]);
@@ -167,6 +172,13 @@ export default function RootLayout() {
       if (next !== 'active') return;
       runOpenCheckIn();
       maybeRescheduleOnForeground();
+      // Re-sync the Pro entitlement on every foreground so a user whose status
+      // was wrongly persisted as false self-heals here instead of waiting for
+      // the next cold start. Same rule as above: `null` is unknown, skip it.
+      checkPremiumStatus().then((isPremium) => {
+        if (isPremium === null) return;
+        useAppStore.getState().setPremium(isPremium);
+      });
     });
     return () => sub.remove();
   }, [hydrated]);

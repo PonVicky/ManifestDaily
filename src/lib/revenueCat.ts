@@ -203,13 +203,21 @@ export async function getTrialEligibility(productIds: string[]): Promise<Record<
   }
 }
 
-/** Checks whether the current user has an active Pro entitlement. */
-export async function checkPremiumStatus(): Promise<boolean> {
+/**
+ * Checks whether the current user has an active Pro entitlement.
+ *
+ * Returns `null` when the entitlement status could not be determined at all —
+ * e.g. offline with no cached RevenueCat customer info, or the SDK is not
+ * configured. `null` means *unknown*, not "not premium": callers must leave the
+ * last known value untouched in that case. Coercing it to `false` would
+ * downgrade a paying user and gate them behind the paywall.
+ */
+export async function checkPremiumStatus(): Promise<boolean | null> {
   try {
     const customerInfo = await Purchases.getCustomerInfo();
     return hasActiveEntitlement(customerInfo);
   } catch (error) {
     if (__DEV__) console.error('[RevenueCat] checkPremiumStatus failed:', error);
-    return false;
+    return null;
   }
 }
