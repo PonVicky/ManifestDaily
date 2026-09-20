@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buildMonthActivity, useAppStore } from '../../store/useAppStore';
+import { buildMonthActivity, maxMonthOffset, useAppStore } from '../../store/useAppStore';
 import { isGated } from '../../lib/featureAccess';
 import PaywallRedirect from '../../components/shared/PaywallRedirect';
 import { useTheme } from '../../hooks/useTheme';
@@ -84,7 +85,37 @@ function ProgressScreenInner() {
   const insight = useAppStore((s) => s.focusInsight)();
   const streak = useAppStore((s) => s.streak)();
   const streakDays = useAppStore((s) => s.streakDays);
-  const monthLabel = useMemo(() => buildMonthActivity(streakDays).monthLabel, [streakDays]);
+  const sessions = useAppStore((s) => s.sessions);
+  const onboardingCompletedAt = useAppStore((s) => s.onboardingCompletedAt);
+
+  // Months back from the current month. 0 = this month, negative = ahead of it.
+  const [monthOffset, setMonthOffset] = useState(0);
+
+  // One month of slack past each end of the real range: one before the month
+  // the user started, one after the current month. Those two months are always
+  // empty by definition, but having them reachable means the arrows are never
+  // both dead on a fresh install, and the calendar reads as a calendar you can
+  // move around rather than a single fixed panel.
+  const MONTH_PAD = 1;
+  const oldestOffset = useMemo(
+    () => maxMonthOffset(onboardingCompletedAt, streakDays, sessions) + MONTH_PAD,
+    [onboardingCompletedAt, streakDays, sessions],
+  );
+  const newestOffset = -MONTH_PAD;
+
+  const canGoBack = monthOffset < oldestOffset;
+  const canGoForward = monthOffset > newestOffset;
+
+  const monthLabel = useMemo(
+    () => buildMonthActivity(streakDays, monthOffset).monthLabel,
+    [streakDays, monthOffset],
+  );
+
+  const stepMonth = (delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMonthOffset((o) => Math.min(oldestOffset, Math.max(newestOffset, o + delta)));
+  };
+
   const insets = useSafeAreaInsets();
 
   return (
@@ -175,13 +206,34 @@ function ProgressScreenInner() {
           >
             Activity
           </Text>
-          <Text
-            style={[styles.cardSub, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}
-          >
-            {monthLabel}
-          </Text>
+          {/* Month stepper. Arrows dim and stop responding at the ends: one
+          month before the user started going back, one month past the current
+          month going forward. */}
+          <View style={styles.monthNav}>
+            <Pressable
+              onPress={() => stepMonth(1)}
+              disabled={!canGoBack}
+              hitSlop={8}
+              style={{ opacity: canGoBack ? 1 : 0.25 }}
+            >
+              <Icon name="arrowL" size={16} color={theme.text2} />
+            </Pressable>
+            <Text
+              style={[styles.cardSub, styles.monthLabel, { color: theme.text2, fontFamily: 'DMSans_400Regular' }]}
+            >
+              {monthLabel}
+            </Text>
+            <Pressable
+              onPress={() => stepMonth(-1)}
+              disabled={!canGoForward}
+              hitSlop={8}
+              style={{ opacity: canGoForward ? 1 : 0.25 }}
+            >
+              <Icon name="arrowR" size={16} color={theme.text2} />
+            </Pressable>
+          </View>
         </View>
-        <ActivityCalendar />
+        <ActivityCalendar monthOffset={monthOffset} />
       </Card>
 
       {/* Insight box — derived from real session timestamps; hidden until there's data */}
@@ -255,8 +307,19 @@ const styles = StyleSheet.create({
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: spacing.base,
+  },
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  monthLabel: {
+    // Fixed width so the label doesn't jostle the arrows as month names
+    // change length (May 2026 vs September 2026).
+    minWidth: 104,
+    textAlign: 'center',
   },
   cardTitle: {
     fontSize: fontSize.xl,

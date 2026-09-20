@@ -5,12 +5,18 @@ import { useTheme } from '../../hooks/useTheme';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-export default function ActivityCalendar() {
+interface ActivityCalendarProps {
+  // Months back from the current month. 0 = this month; the Progress screen
+  // owns this so its header arrows and the grid stay in step.
+  monthOffset?: number;
+}
+
+export default function ActivityCalendar({ monthOffset = 0 }: ActivityCalendarProps) {
   const { theme } = useTheme();
   const streakDays = useAppStore((s) => s.streakDays);
   const { daysInMonth, firstWeekday, activeDays, today } = useMemo(
-    () => buildMonthActivity(streakDays),
-    [streakDays],
+    () => buildMonthActivity(streakDays, monthOffset),
+    [streakDays, monthOffset],
   );
 
   const cells: Array<number | null> = [

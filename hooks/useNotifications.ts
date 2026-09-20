@@ -8,6 +8,14 @@ import { rescheduleViaStore, cancelAllReminderNotifications } from '../lib/remin
 const SESSION_CHANNEL_ID = 'focus-session';
 const VAULT_CHANNEL_ID = 'vault-unlocks';
 
+// The session screen's own completion handler runs on a 1s tick, so it can
+// reach zero up to a second after the true end time. Scheduling the fallback
+// notification a couple of seconds late gives the in-app path room to win and
+// cancel it whenever the app is foregrounded, instead of racing it and firing
+// a banner on top of the completion screen. Backgrounded, the delay is
+// imperceptible.
+const COMPLETION_GRACE_SECONDS = 2;
+
 // Show the reminder even when the app is foregrounded.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -103,7 +111,8 @@ export function useNotifications() {
 
   // Schedules a one-off notification to fire when a focus session ends, so
   // completion is announced even if the app is backgrounded by then.
-  // `seconds` is the time from now until the session ends.
+  // `seconds` is the time from now until the session ends; the notification
+  // itself is offset by COMPLETION_GRACE_SECONDS (see above).
   const scheduleSessionCompletion = useCallback(async (seconds: number, minutes: number) => {
     await ensureSessionChannel();
 
@@ -115,7 +124,7 @@ export function useNotifications() {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: Math.max(1, Math.round(seconds)),
+        seconds: Math.max(1, Math.round(seconds) + COMPLETION_GRACE_SECONDS),
         repeats: false,
         channelId: SESSION_CHANNEL_ID,
       },

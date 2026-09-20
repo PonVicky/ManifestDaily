@@ -65,7 +65,8 @@ export interface MonthActivity {
   daysInMonth: number;
   firstWeekday: number; // day-of-week (0 = Sunday) that day 1 falls on
   activeDays: Set<number>;
-  today: number;
+  // Day-of-month to ring as "today", or null when viewing a past month.
+  today: number | null;
 }
 
 // Exported so components can compute this with `useMemo` off the stable
@@ -76,10 +77,15 @@ export interface MonthActivity {
 // `streakDays` entries are `startOfDay` keys, i.e. `Date.UTC(...)` of the LOCAL
 // y/m/d, so they must be read back with UTC getters to recover the original
 // local day without a timezone off-by-one.
-export function buildMonthActivity(streakDays: number[]): MonthActivity {
+export function buildMonthActivity(streakDays: number[], monthOffset: number = 0): MonthActivity {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  // Step back `monthOffset` whole months. Anchoring on day 1 sidesteps the
+  // classic setMonth overflow, where stepping back from the 31st lands in the
+  // wrong month entirely (Mar 31 -> Mar 3). Passing a negative month index to
+  // the Date constructor rolls the year back correctly on its own.
+  const target = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1);
+  const year = target.getFullYear();
+  const month = target.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
 
@@ -91,7 +97,58 @@ export function buildMonthActivity(streakDays: number[]): MonthActivity {
     }
   }
 
-  return { monthLabel: `${MONTHS_FULL[month]} ${year}`, daysInMonth, firstWeekday, activeDays, today: now.getDate() };
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
+  return {
+    monthLabel: `${MONTHS_FULL[month]} ${year}`,
+    daysInMonth,
+    firstWeekday,
+    activeDays,
+    today: isCurrentMonth ? now.getDate() : null,
+  };
+}
+
+// How many months back from the current month the activity calendar may go:
+// the distance to the month the user started using the app.
+//
+// Derived from the EARLIEST of onboarding, the first streak day and the first
+// logged session rather than from onboardingCompletedAt alone. That field is
+// null for anyone who onboarded before it was stored (and v13 of the migration
+// clears it), so trusting it by itself would hide real history from exactly
+// the longest-standing users. Taking the minimum means the calendar can always
+// reach every day that has data.
+export function maxMonthOffset(
+  onboardingCompletedAt: string | null,
+  streakDays: number[],
+  sessions: SessionLog[],
+): number {
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth();
+
+  const consider = (y: number, m: number) => {
+    if (y < year || (y === year && m < month)) {
+      year = y;
+      month = m;
+    }
+  };
+
+  if (onboardingCompletedAt) {
+    const d = new Date(onboardingCompletedAt);
+    if (!Number.isNaN(d.getTime())) consider(d.getFullYear(), d.getMonth());
+  }
+  // streakDays are Date.UTC keys of the LOCAL y/m/d, so they must be read back
+  // with UTC getters to recover the original local day (see buildMonthActivity).
+  for (const key of streakDays) {
+    const d = new Date(key);
+    if (!Number.isNaN(d.getTime())) consider(d.getUTCFullYear(), d.getUTCMonth());
+  }
+  for (const s of sessions) {
+    const d = new Date(s.date);
+    if (!Number.isNaN(d.getTime())) consider(d.getFullYear(), d.getMonth());
+  }
+
+  return Math.max(0, (now.getFullYear() - year) * 12 + (now.getMonth() - month));
 }
 
 const SOUND_LABELS: Record<SoundId, string> = SOUNDS.reduce(

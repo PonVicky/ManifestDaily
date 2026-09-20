@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { ImageBackground, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -9,8 +9,10 @@ import Animated from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../store/useAppStore';
 import { useTheme } from '../hooks/useTheme';
+import { useAffirmationShare } from '../hooks/useAffirmationShare';
 import { spacing, radius, fontSize, shadow, shadowDark } from '../constants/tokens';
-import { GOALS, goalIdForAffirmation } from '../constants/data';
+import { GOALS } from '../constants/data';
+import { homeAffirmationFor } from '../constants/homeAffirmations';
 import Icon from '../components/ui/Icon';
 
 // Fixed tones for text over the photo background — theme.gold doesn't have
@@ -30,24 +32,23 @@ export default function AffirmationDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme, darkMode } = useTheme();
+  const { shareCard, share, isSharing } = useAffirmationShare();
 
   const fadeAnim = useSharedValue(1);
 
   const savedAffirmations = useAppStore((s) => s.savedAffirmations);
   const toggleSaveAffirmation = useAppStore((s) => s.toggleSaveAffirmation);
-  const currentAffirmation = useAppStore((s) => s.currentAffirmation);
-  const nextAffirmation = useAppStore((s) => s.nextAffirmation);
-  const prevAffirmation = useAppStore((s) => s.prevAffirmation);
-  // Subscribe to the slices `currentAffirmation()` reads from, so the screen
-  // re-renders (and recomputes its text) when the affirmation changes.
-  useAppStore((s) => s.affirmationIndex);
-  // Re-render when goal selection changes (currentAffirmation pools all goals).
-  useAppStore((s) => s.selectedGoals);
-  const text = currentAffirmation();
+
+  // Opened from the Home card, so it opens on TODAY's curated affirmation.
+  // The arrows/swipes browse the same 30 from there via a local offset —
+  // local, not persisted, so leaving and reopening always returns to today
+  // rather than stranding the user wherever they last browsed to.
+  const [offset, setOffset] = useState(0);
+  const current = homeAffirmationFor(offset);
+  const text = current.text;
   const isSaved = savedAffirmations.includes(text);
-  // Tag reflects the goal of the CURRENT affirmation (goals may be pooled).
-  const tagGoalId = goalIdForAffirmation(text);
-  const goal = tagGoalId ? GOALS.find((g) => g.id === tagGoalId) : undefined;
+  const tagGoalId = current.category;
+  const goal = GOALS.find((g) => g.id === tagGoalId);
   const sh = darkMode ? shadowDark.md : shadow.md;
   const photoText = darkMode ? PHOTO_TEXT_DARK : PHOTO_TEXT_LIGHT;
   const photoAccent = darkMode ? PHOTO_ACCENT_DARK : PHOTO_ACCENT_LIGHT;
@@ -70,22 +71,19 @@ export default function AffirmationDetailScreen() {
     toggleSaveAffirmation(text);
   };
 
-  const handleShare = async () => {
-    try {
-      await Share.share({ message: `${text}\n\n— ManifestDaily` });
-    } catch {
-      // User dismissed the share sheet, or sharing is unavailable — ignore.
-    }
+  const handleShare = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    share(text, tagGoalId);
   };
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    nextAffirmation();
+    setOffset((o) => o + 1);
   };
 
   const handlePrev = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    prevAffirmation();
+    setOffset((o) => o - 1);
   };
 
   // Swipe left → next affirmation, swipe right → previous.
@@ -187,10 +185,15 @@ export default function AffirmationDetailScreen() {
               {/* Share */}
               <TouchableOpacity
                 onPress={handleShare}
+                disabled={isSharing}
                 style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.cardSolid }]}
                 activeOpacity={0.85}
               >
-                <Icon name="share" size={22} color={theme.text2} />
+                {isSharing ? (
+                  <ActivityIndicator size="small" color={theme.text2} />
+                ) : (
+                  <Icon name="share" size={22} color={theme.text2} />
+                )}
               </TouchableOpacity>
 
               {/* Next */}
@@ -205,6 +208,8 @@ export default function AffirmationDetailScreen() {
           </View>
         </View>
       </GestureDetector>
+
+      {shareCard}
     </ImageBackground>
   );
 }

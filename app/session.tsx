@@ -4,10 +4,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useAppStore, isStreakMilestone } from '../store/useAppStore';
 import { useTheme } from '../hooks/useTheme';
 import { useNotifications } from '../hooks/useNotifications';
 import { useAudio } from '../hooks/useAudio';
+import { playCompletionChime } from '../lib/completionChime';
 import { maybeRequestReview } from '../lib/storeReview';
 import { trackEvent } from '../lib/analytics';
 import { spacing, shadow, shadowDark } from '../constants/tokens';
@@ -15,6 +17,10 @@ import TimerRing from '../components/ui/TimerRing';
 import Mascot from '../components/ui/Mascot';
 import Icon from '../components/ui/Icon';
 import { FocusDuration, SoundId } from '../constants/data';
+
+// Tag for the session wake lock. Naming it (rather than using the default
+// tag) keeps this lock independent of anything else that might hold one.
+const KEEP_AWAKE_TAG = 'focus-session';
 
 export default function SessionScreen() {
   const router = useRouter();
@@ -145,6 +151,19 @@ export default function SessionScreen() {
     return () => sub.remove();
   }, [sessionEndTime, paused, completed]);
 
+  // Hold a wake lock while the timer is counting down. Without this the OS
+  // display timeout blanks the screen mid-session on both iOS and Android,
+  // which hides the ring the whole feature is built around. The lock is
+  // released while paused and once the session ends so we never sit on it
+  // longer than the session itself, and it is a no-op while backgrounded.
+  useEffect(() => {
+    if (paused || completed) return;
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+    return () => {
+      deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+    };
+  }, [paused, completed]);
+
   // Fire completion side-effects exactly once, when the clock hits zero.
   useEffect(() => {
     if (secondsLeft === 0 && !completed) {
@@ -168,9 +187,18 @@ export default function SessionScreen() {
         setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 450);
       }
       clearActiveSession();
-      cancelSessionCompletion(notificationIdRef.current);
-      notificationIdRef.current = null;
       stopAudio();
+
+      // Announce the finish audibly. In the foreground we cancel the pending
+      // notification and play the chime ourselves, so the moment lands on the
+      // completion screen rather than as a banner over it. If the app is
+      // backgrounded, playback is not available — leave the notification
+      // scheduled and let it fire with its own sound instead.
+      if (AppState.currentState === 'active') {
+        cancelSessionCompletion(notificationIdRef.current);
+        playCompletionChime();
+      }
+      notificationIdRef.current = null;
     }
   }, [secondsLeft, completed]);
 

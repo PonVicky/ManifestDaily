@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
@@ -21,6 +21,8 @@ interface AffSlideProps {
   goalId?: GoalId | null;
   // Custom (user-authored) slides get extra edit/delete actions.
   isCustom?: boolean;
+  // True while this slide's affirmation is being captured for an image share.
+  isSharing?: boolean;
   onSave?: () => void;
   onShare?: () => void;
   onEdit?: () => void;
@@ -29,7 +31,7 @@ interface AffSlideProps {
 
 const { height: screenHeight } = Dimensions.get('window');
 
-function AffSlide({ text, index, isActive, slideHeight, goalId: goalIdProp, isCustom, onSave, onShare, onEdit, onDelete }: AffSlideProps) {
+function AffSlide({ text, index, isActive, slideHeight, goalId: goalIdProp, isCustom, isSharing, onSave, onShare, onEdit, onDelete }: AffSlideProps) {
   const { theme, darkMode } = useTheme();
   // Select the derived boolean directly (not the whole array) so this slide
   // only re-renders when ITS OWN saved status flips, instead of on every like
@@ -147,9 +149,14 @@ function AffSlide({ text, index, isActive, slideHeight, goalId: goalIdProp, isCu
             },
           ]}
           onPress={handleShare}
+          disabled={isSharing}
           activeOpacity={0.85}
         >
-          <Icon name="share" size={18} color={theme.text2} />
+          {isSharing ? (
+            <ActivityIndicator size="small" color={theme.text2} />
+          ) : (
+            <Icon name="share" size={18} color={theme.text2} />
+          )}
         </TouchableOpacity>
 
         {isCustom && (

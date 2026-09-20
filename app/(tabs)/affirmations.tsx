@@ -1,10 +1,11 @@
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Text, NativeScrollEvent, LayoutChangeEvent, Share, StatusBar, Dimensions, ImageBackground, TouchableOpacity, Pressable, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, NativeScrollEvent, LayoutChangeEvent, StatusBar, Dimensions, ImageBackground, TouchableOpacity, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
+import { useAffirmationShare } from '../../hooks/useAffirmationShare';
 import { affirmationPool, goalIdForAffirmation, GoalId } from '../../constants/data';
 import { canCreateCustomAffirmation, isGated, presentPaywall } from '../../lib/featureAccess';
 import AffSlide from '../../components/ui/AffSlide';
@@ -39,6 +40,7 @@ interface FeedItem {
 export default function AffirmationsScreen() {
   const router = useRouter();
   const { theme, darkMode } = useTheme();
+  const { shareCard, share, isSharing } = useAffirmationShare();
   const insets = useSafeAreaInsets();
   const selectedGoals = useAppStore((s) => s.selectedGoals);
   const isPremium = useAppStore((s) => s.isPremium);
@@ -206,15 +208,18 @@ export default function AffirmationsScreen() {
     toggleSaveAffirmation(text);
   }, [toggleSaveAffirmation]);
 
-  const handleShare = useCallback(async (text: string) => {
+  // Which affirmation is mid-capture, so only that slide shows a spinner
+  // rather than every share button in the feed.
+  const [sharingKey, setSharingKey] = useState<string | null>(null);
+
+  const handleShare = useCallback(async (item: FeedItem) => {
+    setSharingKey(item.key);
     try {
-      await Share.share({
-        message: `"${text}"\n\n— ManifestDaily\nDaily affirmations & focus sessions`,
-      });
-    } catch {
-      // User dismissed or sharing unavailable
+      await share(item.text, item.goalId);
+    } finally {
+      setSharingKey(null);
     }
-  }, []);
+  }, [share]);
 
   const handleEdit = useCallback((item: FeedItem) => {
     if (!item.id) return;
@@ -419,7 +424,8 @@ export default function AffirmationsScreen() {
                 isCustom={item.isCustom}
                 isActive={activeIndex === realIndex}
                 onSave={() => handleSave(item.text)}
-                onShare={() => handleShare(item.text)}
+                onShare={() => handleShare(item)}
+                isSharing={isSharing && sharingKey === item.key}
                 onEdit={() => handleEdit(item)}
                 onDelete={() => handleDelete(item)}
               />
@@ -427,6 +433,8 @@ export default function AffirmationsScreen() {
           })}
         </ScrollView>
       )}
+
+      {shareCard}
     </ImageBackground>
   );
 }

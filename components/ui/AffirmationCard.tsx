@@ -1,12 +1,14 @@
 import React, { useEffect } from 'react';
-import { ImageBackground, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
+import { useAffirmationShare } from '../../hooks/useAffirmationShare';
 import { radius, shadow, shadowDark, spacing } from '../../constants/tokens';
-import { GOALS, goalIdForAffirmation } from '../../constants/data';
+import { GOALS } from '../../constants/data';
+import { homeAffirmationFor } from '../../constants/homeAffirmations';
 import { trackEvent } from '../../lib/analytics';
 import Icon from './Icon';
 
@@ -20,18 +22,19 @@ interface AffirmationCardProps {
 export default function AffirmationCard(_props: AffirmationCardProps) {
   const router = useRouter();
   const { theme, darkMode } = useTheme();
+  const { shareCard, share, isSharing } = useAffirmationShare();
   const savedAffirmations = useAppStore((s) => s.savedAffirmations);
   const toggleSaveAffirmation = useAppStore((s) => s.toggleSaveAffirmation);
-  const currentAffirmation = useAppStore((s) => s.currentAffirmation);
-  useAppStore((s) => s.affirmationIndex);
-  useAppStore((s) => s.selectedGoals);
   const sh = darkMode ? shadowDark.lg : shadow.lg;
 
   const opacity = useSharedValue(1);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
 
-  const text = currentAffirmation();
+  // Home shows the curated daily line, not the goal-filtered library. It is
+  // derived from today's date, so it rolls over at local midnight on its own.
+  const today = homeAffirmationFor();
+  const text = today.text;
   const isSaved = savedAffirmations.includes(text);
 
   // Fire once per distinct affirmation shown on the home card (initial display
@@ -40,8 +43,8 @@ export default function AffirmationCard(_props: AffirmationCardProps) {
     trackEvent('affirmation_viewed');
   }, [text]);
 
-  const goalId = goalIdForAffirmation(text);
-  const goal = goalId ? GOALS.find((g) => g.id === goalId) : undefined;
+  const goalId = today.category;
+  const goal = GOALS.find((g) => g.id === goalId);
 
   const handleOpen = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -53,12 +56,9 @@ export default function AffirmationCard(_props: AffirmationCardProps) {
     toggleSaveAffirmation(text);
   };
 
-  const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `"${text}"\n\n— ManifestDaily\nDaily affirmations & focus sessions`,
-      });
-    } catch { }
+  const handleShare = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    share(text, goalId);
   };
 
   const cardStyle = useAnimatedStyle(() => ({
@@ -67,6 +67,7 @@ export default function AffirmationCard(_props: AffirmationCardProps) {
   }));
 
   return (
+    <>
     <TouchableOpacity onPress={handleOpen} activeOpacity={0.95}>
       <Animated.View style={[styles.cardWrapper, { borderColor: theme.border, ...sh }, cardStyle]}>
         <ImageBackground
@@ -105,13 +106,23 @@ export default function AffirmationCard(_props: AffirmationCardProps) {
             <TouchableOpacity
               style={[styles.pill, { borderColor: theme.border, backgroundColor: theme.cardSolid }]}
               onPress={handleShare}
+              disabled={isSharing}
             >
-              <Icon name="share" size={18} color={theme.text2} />
+              {isSharing ? (
+                <ActivityIndicator size="small" color={theme.text2} />
+              ) : (
+                <Icon name="share" size={18} color={theme.text2} />
+              )}
             </TouchableOpacity>
           </View>
         </ImageBackground>
       </Animated.View>
     </TouchableOpacity>
+
+    {/* Rendered outside cardWrapper, which is overflow:'hidden' and would
+    clip the off-screen capture target. */}
+    {shareCard}
+    </>
   );
 }
 
