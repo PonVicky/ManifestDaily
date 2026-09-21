@@ -21,6 +21,7 @@ import Button from '../../components/shared/Button';
 import Icon, { IconName } from '../../components/ui/Icon';
 import ProgressDots from '../../components/ui/ProgressDots';
 import { trackEvent } from '../../lib/analytics';
+import { isPaywallHidden } from '../../constants/config';
 
 const TOTAL_STEPS = 13;
 
@@ -157,7 +158,10 @@ export default function PlanScreen() {
             label="See my full plan"
             onPress={() => {
               trackEvent('onboarding_step_completed', { step: 11 });
-              router.push('/(onboarding)/paywall');
+              // Android with the paywall hidden: go straight to the "all set"
+              // screen, as a user who just purchased would. Its Enter button
+              // completes onboarding.
+              router.push(isPaywallHidden() ? '/(onboarding)/allset' : '/(onboarding)/paywall');
             }}
             variant="primary"
             disabled={!isLoaded}

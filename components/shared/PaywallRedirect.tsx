@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { FEATURE_PAYWALL_ROUTE, FeatureKey } from '../../lib/featureAccess';
 import { trackEvent } from '../../lib/analytics';
+import { isPaywallHidden } from '../../constants/config';
 
 // Rendered in place of a premium screen when a free Android user lands on it
 // (tab tap, Home shortcut, deep link): bounces to the paywall and renders
@@ -11,6 +12,8 @@ export default function PaywallRedirect({ feature }: { feature: FeatureKey }) {
   const router = useRouter();
 
   useEffect(() => {
+    // Android paywall hidden (constants/config.ts): don't navigate at all.
+    if (isPaywallHidden()) return;
     trackEvent('feature_gate_hit', { feature });
     router.replace(FEATURE_PAYWALL_ROUTE);
   }, [feature, router]);

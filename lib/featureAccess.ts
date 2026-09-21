@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import type { Router } from 'expo-router';
 import { trackEvent } from './analytics';
+import { isPaywallHidden } from '../constants/config';
 
 // Central free-vs-premium policy for the Android freemium (soft paywall) model.
 //
@@ -82,7 +83,10 @@ export const FEATURE_PAYWALL_ROUTE = {
 
 // Send a free user who tapped a locked feature to the paywall. Pushed (not
 // replaced) so the paywall's close button pops back to where they were.
+// With the Android paywall hidden (constants/config.ts) this is a no-op, so the
+// tap simply does nothing.
 export function presentPaywall(router: Router, feature: FeatureKey): void {
+  if (isPaywallHidden()) return;
   trackEvent('feature_gate_hit', { feature });
   router.push(FEATURE_PAYWALL_ROUTE);
 }
